@@ -23,7 +23,12 @@
 
 -export([assign/2,
          check_ring/0,
-         check_ring/1]).
+         check_ring/1,
+         multiclaim/2,
+         multiclaim_rebalance/2,
+         compare/2,
+         diagonal/2,
+         set_ring_node/2]).
 
 %% @doc Forcibly assign a partition to a specific node
 assign(Partition, ToNode) ->
@@ -55,3 +60,71 @@ check_ring(Ring) ->
                                 ordsets:add_element(PL, Acc)
                         end
                 end, [], Preflists).
+
+%% Simulate what would happen if a new node was added and each
+%% had a chance to claim partitions in order.  This is *not* what
+%% happens in real life due to gossip.
+multiclaim(Ring, []) ->
+    Ring;
+multiclaim(Ring, [Node | Nodes]) ->
+    case riak_core_claim:default_wants_claim(Ring, Node) of
+        {yes, _} ->
+            NewRing = riak_core_claim:default_choose_claim(Ring, Node),
+            multiclaim(multiclaim_rebalance(NewRing, 100), Nodes);
+        no ->
+            multiclaim(Ring, Nodes)
+    end.    
+
+%% Given a ring, let each node have a go at rebalancing until
+%% nobody wants to change.
+multiclaim_rebalance(R, 0) ->
+    io:format("Warning: Could not balance with ~p nodes\n",
+              [length(riak_core_ring:all_members(R))]),
+    R;
+multiclaim_rebalance(R, Tries) ->
+    Choosers = lists:filter(fun(N1) ->
+                                 riak_core_claim:default_wants_claim(R, N1) /= no
+                         end,
+                         lists:usort(riak_core_ring:all_members(R))),
+    case Choosers of 
+        [] ->
+            R;
+        _ ->
+            NewRing = lists:foldl(fun(N2,R2) ->
+                                          riak_core_claim:default_choose_claim(R2, N2)
+                                  end, R, Choosers),
+            multiclaim_rebalance(NewRing, Tries - 1)
+    end.
+
+%% Compare two rings and show for each node how many partitions it
+%% now owns, how many it lost and how many it gained.
+%% n.b. lost + gained >= owned
+compare(OldR, NewR) ->
+    OldOwners = riak_core_ring:all_owners(OldR),
+    NewOwners = riak_core_ring:all_owners(NewR),
+    Nodes = lists:usort(riak_core_ring:all_members(OldR) ++
+                            riak_core_ring:all_members(NewR)),
+    [begin
+         Owned = [P || {P, N1} <- OldOwners, N1 == N],
+         Owns = [P || {P, N1} <- NewOwners, N1 == N],
+         {N,
+          owns, length(Owns),
+          lost, length(Owned -- Owns),
+          gained, length(Owns -- Owned)}
+         end || N <- Nodes].
+
+%% Create a 'diagonal' ring for the nodes listed, partitions will
+%% be assigned to each node in order.  Make sure Q rem length(Node) >= N
+%% to make balanced ring.
+diagonal(Q, Nodes) ->
+    R0 = riak_core_ring:fresh(Q, hd(Nodes)),
+    Ps = [P || {P,_} <- riak_core_ring:all_owners(R0)],
+    {R, _} = lists:foldl(fun(P1, {R1, [NextN | RestN]}) ->
+                                 {riak_core_ring:transfer_node(P1, NextN, R1),
+                                  RestN ++ [NextN]}
+                         end, {R0, Nodes}, Ps),
+    R.
+
+%% Set the ring node name
+set_ring_node(R, Node) ->
+    setelement(2, R, Node).

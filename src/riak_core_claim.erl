@@ -55,6 +55,7 @@
 -export([default_wants_claim/1, default_choose_claim/1,
          never_wants_claim/1, random_choose_claim/1]).
 -export([default_choose_claim/2,
+         default_wants_claim/2,
          claim_rebalance_n/2]).
 
 -ifdef(TEST).
@@ -304,7 +305,7 @@ test_nodes(Count) ->
     [node() | [list_to_atom(lists:concat(["n_", N])) || N <- lists:seq(1, Count-1)]].
 
 prop_claim_ensures_unique_nodes_test_() ->
-    Prop = eqc:numtests(250, ?QC_OUT(prop_claim_ensures_unique_nodes())),
+    Prop = fails(eqc:numtests(250, ?QC_OUT(prop_claim_ensures_unique_nodes()))),
     {timeout, 120, fun() -> ?assert(eqc:quickcheck(Prop)) end}.
 
 prop_claim_ensures_unique_nodes() ->
