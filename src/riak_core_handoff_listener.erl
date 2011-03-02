@@ -31,8 +31,8 @@
 -record(state, {portnum}).
 
 start_link() ->
-    PortNum = app_helper:get_env(riak_core, handoff_port),
-    IpAddr = app_helper:get_env(riak_core, handoff_ip),
+    PortNum = riak_core_config:handoff_port(),
+    IpAddr = riak_core_config:handoff_ip(),
     gen_nb_server:start_link(?MODULE, IpAddr, PortNum, [PortNum]).
 
 init([PortNum]) -> 

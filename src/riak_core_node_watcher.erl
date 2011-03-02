@@ -263,7 +263,7 @@ schedule_broadcast(State) ->
         OldTref ->
             erlang:cancel_timer(OldTref)
     end,
-    Interval = app_helper:get_env(riak_core, gossip_interval),
+    Interval = riak_core_config:gossip_interval(),
     Tref = erlang:send_after(Interval, self(), broadcast),
     State#state { bcast_tref = Tref }.
 

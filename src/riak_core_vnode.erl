@@ -81,7 +81,7 @@ init([Mod, Index]) ->
     process_flag(trap_exit, true),
     {ok, ModState} = Mod:init([Index]),
     riak_core_handoff_manager:remove_exclusion(Mod, Index),
-    Timeout = app_helper:get_env(riak_core, vnode_inactivity_timeout, ?DEFAULT_TIMEOUT),
+    Timeout = riak_core_config:vnode_inactivity_timeout(),
     {ok, active, #state{index=Index, mod=Mod, modstate=ModState,
                         inactivity_timeout=Timeout}, 0}.
 

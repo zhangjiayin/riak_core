@@ -41,9 +41,9 @@
 %%      behavior, to allow settings from app.config to override any
 %%      hard-coded values.
 append_bucket_defaults(Items) when is_list(Items) ->
-    OldDefaults = app_helper:get_env(riak_core, default_bucket_props, []),
+    OldDefaults = riak_core_config:default_bucket_props(),
     NewDefaults = merge_props(OldDefaults, Items),
-    application:set_env(riak_core, default_bucket_props, NewDefaults).
+    riak_core_config:default_bucket_props(NewDefaults).
 
 
 %% @spec set_bucket(riak_object:bucket(), BucketProps::riak_core_bucketprops()) -> ok
@@ -88,7 +88,7 @@ get_bucket(Name, Ring) ->
     case riak_core_ring:get_meta({bucket, Name}, Ring) of
         undefined ->
             [{name, Name}
-             |app_helper:get_env(riak_core, default_bucket_props)];
+             | riak_core_config:default_bucket_props()];
         {ok, Bucket} -> Bucket
     end.
 

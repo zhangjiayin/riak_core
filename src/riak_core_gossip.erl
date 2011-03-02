@@ -139,18 +139,18 @@ code_change(_OldVsn, State, _Extra) ->
 %% ===================================================================
 
 schedule_next_gossip() ->
-    MaxInterval = app_helper:get_env(riak_core, gossip_interval),
+    MaxInterval = riak_core_config:gossip_interval(),
     Interval = random:uniform(MaxInterval),
     timer:apply_after(Interval, gen_server, cast, [?MODULE, gossip_ring]).
 
 claim_until_balanced(Ring) ->
-    {WMod, WFun} = app_helper:get_env(riak_core, wants_claim_fun),
+    {WMod, WFun} = riak_core_config:wants_claim_fun(),
     NeedsIndexes = apply(WMod, WFun, [Ring]),
     case NeedsIndexes of
         no ->
             Ring;
         {yes, _NumToClaim} ->
-            {CMod, CFun} = app_helper:get_env(riak_core, choose_claim_fun),
+            {CMod, CFun} = riak_core_config:choose_claim_fun(),
             NewRing = CMod:CFun(Ring),
             claim_until_balanced(NewRing)
     end.
@@ -195,7 +195,7 @@ remove_from_cluster(ExitingNode) ->
 
 
 attempt_simple_transfer(Ring, Owners, ExitingNode) ->
-    TargetN = app_helper:get_env(riak_core, target_n_val),
+    TargetN = riak_core_config:target_n_val(),
     attempt_simple_transfer(Ring, Owners,
                             TargetN,
                             ExitingNode, 0,

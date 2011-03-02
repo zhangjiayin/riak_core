@@ -65,7 +65,7 @@ fresh() ->
 %      Called by fresh/0, and otherwise only intended for testing purposes.
 -spec fresh(NodeName :: term()) -> chstate().
 fresh(NodeName) ->
-    fresh(app_helper:get_env(riak_core, ring_creation_size), NodeName).
+    fresh(riak_core_config:ring_creation_size(), NodeName).
 
 % @doc Equivalent to fresh/1 but allows specification of the ring size.
 %      Called by fresh/1, and otherwise only intended for testing purposes.

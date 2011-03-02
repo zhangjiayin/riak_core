@@ -1,4 +1,4 @@
- %% -------------------------------------------------------------------
+%% -------------------------------------------------------------------
 %%
 %% riak_core: Core Riak Application
 %%
@@ -29,11 +29,16 @@
 
 -export([http_ip_and_port/0, ring_state_dir/0, ring_creation_size/0,
          default_bucket_props/0, cluster_name/0, gossip_interval/0,
-         target_n_val/0]).
+         target_n_val/0, default_bucket_props/1, wants_claim_fun/0,
+         choose_claim_fun/0, handoff_ip/0, handoff_port/0, handoff_concurrency/0, ssl/0,
+         vnode_inactivity_timeout/0,
+         disable_http_nagle/0, http_logdir/0]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
+
+-define(DEFAULT_TIMEOUT, 60000).
 
 %% ===================================================================
 %% Public API
@@ -93,12 +98,55 @@ target_n_val() ->
 %% @spec default_bucket_props() -> BucketProps::riak_core_bucketprops() | undefined
 %% @doc Get the default_bucket_props environment variable.
 default_bucket_props() ->
-    get_riak_core_env(default_bucket_props).
+    get_riak_core_env(default_bucket_props, []).
+
+default_bucket_props(BucketProps) ->
+    set_riak_core_env(default_bucket_props, BucketProps).
+
+wants_claim_fun() ->
+    get_riak_core_env(wants_claim_fun).
+
+choose_claim_fun() ->
+    get_riak_core_env(choose_claim_fun).
+
+handoff_ip() ->
+    get_riak_core_env(handoff_ip).
+
+handoff_port() ->
+    get_riak_core_env(handoff_port).
+
+handoff_concurrency() ->
+    get_riak_core_env(handoff_concurrency, 4).
+
+vnode_inactivity_timeout() ->
+    get_riak_core_env(vnode_inactivity_timeout, ?DEFAULT_TIMEOUT).
+
+disable_http_nagle() ->
+    get_riak_core_env(disable_http_nagle, false).
+
+http_logdir() ->
+    get_riak_core_env(http_logdir, "log").
+
+ssl() ->
+    get_riak_core_env(ssl, [{certfile, "etc/cert.pem"}, {keyfile, "etc/key.pem"}]).
+
+
 
 %% @private
 get_riak_core_env(Key) ->
-   app_helper:get_env(riak_core, Key).
+    get_riak_core_env(Key, undefined).
 
+get_riak_core_env(Key, Default) ->
+    case application:get_env(riak_core, Key) of
+	{ok, Value} ->
+            Value;
+        _ ->
+            Default
+    end.
+
+%% @private
+set_riak_core_env(Key, Value) ->
+    application:set_env(riak_core, Key, Value).
 
 %% ===================================================================
 %% EUnit tests
