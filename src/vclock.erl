@@ -49,8 +49,8 @@
 
 % Nodes can have any term() as a name, but they must differ from each other.
 -type   vclock_node() :: term().
--type   counter() :: integer().
--type   timestamp() :: integer().
+-type   counter() :: non_neg_integer().
+-type   timestamp() :: non_neg_integer().
 
 % @doc Create a brand new vclock.
 -spec fresh() -> vclock().
@@ -202,7 +202,6 @@ prune_vclock1(V,Now,BProps,HeadTime) ->
 %% ===================================================================
 -ifdef(TEST).
 
-% @doc Serves as both a trivial test and some example code.
 example_test() ->
     A = vclock:fresh(),
     B = vclock:fresh(),

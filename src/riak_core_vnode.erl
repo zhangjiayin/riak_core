@@ -72,7 +72,7 @@ behaviour_info(_Other) ->
 -define(LOCK_RETRY_TIMEOUT, 10000).
 -define(MODSTATE, State#state{mod=Mod,modstate=ModState}).
 -record(state, {
-          index :: partition(),
+          index :: chash:partition(),
           mod :: module(),
           modstate :: term(),
           handoff_token :: non_neg_integer(),
@@ -94,7 +94,7 @@ send_command(Pid, Request) ->
 
 %% Sends a command to the FSM that called it after Time 
 %% has passed.
--spec send_command_after(integer(), term()) -> reference().
+-spec send_command_after(non_neg_integer(), term()) -> reference().
 send_command_after(Time, Request) ->
     gen_fsm:send_event_after(Time, ?VNODE_REQ{request=Request}).
     

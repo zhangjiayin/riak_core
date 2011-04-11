@@ -33,21 +33,20 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--type index() :: non_neg_integer().
 -type n_val() :: non_neg_integer().
 -type ring() :: riak_core_ring:riak_core_ring().
--type preflist() :: [{index(), node()}].
--type preflist2() :: [{{index(), node()}, primary|fallback}].
+-type preflist() :: [{chash:partition(), node()}].
+-type preflist2() :: [{{chash:partition(), node()}, primary|fallback}].
 
 %% Return preflist of all active primary nodes (with no
 %% substituion of fallbacks).  Used to simulate a
 %% preflist with N=ring_size
--spec active_owners(atom()) -> preflist().
+-spec active_owners(riak_core_node_watcher:service()) -> preflist().
 active_owners(Service) ->
     {ok, Ring} = riak_core_ring_manager:get_my_ring(),
     active_owners(Ring, riak_core_node_watcher:nodes(Service)).
 
--spec active_owners(ring(), [node()]) -> preflist().
+-spec active_owners(ring(), [chash:chash_node()]) -> preflist().
 active_owners(Ring, UpNodes) ->
     UpNodes1 = ordsets:from_list(UpNodes),
     Primaries = riak_core_ring:all_owners(Ring),
@@ -55,14 +54,14 @@ active_owners(Ring, UpNodes) ->
     lists:reverse(Up).
 
 %% Get the active preflist taking account of which nodes are up
--spec get_apl(binary(), n_val(), atom()) -> preflist().
+-spec get_apl(chash:bin_index(), n_val(), riak_core_node_watcher:service()) -> preflist().
 get_apl(DocIdx, N, Service) ->
     {ok, Ring} = riak_core_ring_manager:get_my_ring(),
     get_apl(DocIdx, N, Ring, riak_core_node_watcher:nodes(Service)).
 
 %% Get the active preflist taking account of which nodes are up
 %% for a given ring/upnodes list
--spec get_apl(binary(), n_val(), ring(), [node()]) -> preflist().
+-spec get_apl(chash:bin_index(), n_val(), ring(), [chash:chash_node()]) -> preflist().
 get_apl(DocIdx, N, Ring, UpNodes) ->
     [{Partition, Node} || {{Partition, Node}, _Type} <- 
                               get_apl_ann(DocIdx, N, Ring, UpNodes)].
@@ -70,7 +69,7 @@ get_apl(DocIdx, N, Ring, UpNodes) ->
 %% Get the active preflist taking account of which nodes are up
 %% for a given ring/upnodes list and annotate each node with type of
 %% primary/fallback
--spec get_apl_ann(binary(), n_val(), ring(), [node()]) -> preflist2().
+-spec get_apl_ann(chash:bin_index(), n_val(), ring(), [chash:chash_node()]) -> preflist2().
 get_apl_ann(DocIdx, N, Ring, UpNodes) ->
     UpNodes1 = ordsets:from_list(UpNodes),
     Preflist = riak_core_ring:preflist(DocIdx, Ring),
@@ -79,13 +78,13 @@ get_apl_ann(DocIdx, N, Ring, UpNodes) ->
     lists:reverse(Up) ++ find_fallbacks(Pangs, Fallbacks, UpNodes1, []).
 
 %% Same as get_apl, but returns only the primaries.
--spec get_primary_apl(binary(), n_val(), atom()) -> preflist().
+-spec get_primary_apl(chash:bin_index(), n_val(), riak_core_node_watcher:service()) -> preflist().
 get_primary_apl(DocIdx, N, Service) ->
     {ok, Ring} = riak_core_ring_manager:get_my_ring(),
     get_primary_apl(DocIdx, N, Ring, riak_core_node_watcher:nodes(Service)).
 
 %% Same as get_apl, but returns only the primaries.
--spec get_primary_apl(binary(), n_val(), ring(), [node()]) -> preflist().
+-spec get_primary_apl(chash:bin_index(), n_val(), ring(), [chash:chash_node()]) -> preflist().
 get_primary_apl(DocIdx, N, Ring, UpNodes) ->
     UpNodes1 = ordsets:from_list(UpNodes),
     Preflist = riak_core_ring:preflist(DocIdx, Ring),
@@ -94,7 +93,7 @@ get_primary_apl(DocIdx, N, Ring, UpNodes) ->
     lists:reverse(Up).
 
 %% Split a preference list into up and down lists
--spec check_up(preflist(), [node()], preflist2(), preflist()) -> {preflist2(), preflist()}.
+-spec check_up(preflist(), [chash:chash_node()], preflist2(), preflist()) -> {preflist2(), preflist()}.
 check_up([], _UpNodes, Up, Pangs) ->
     {Up, Pangs};
 check_up([{Partition,Node}|Rest], UpNodes, Up, Pangs) ->
@@ -106,7 +105,7 @@ check_up([{Partition,Node}|Rest], UpNodes, Up, Pangs) ->
     end.
 
 %% Find fallbacks for downed nodes in the preference list
--spec find_fallbacks(preflist(), preflist(), [node()], preflist2()) -> preflist2().
+-spec find_fallbacks(preflist(), preflist(), [chash:chash_node()], preflist2()) -> preflist2().
 find_fallbacks(_Pangs, [], _UpNodes, Secondaries) ->
     Secondaries;
 find_fallbacks([], _Fallbacks, _UpNodes, Secondaries) ->

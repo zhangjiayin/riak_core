@@ -66,9 +66,12 @@
 
 %% @spec default_wants_claim(riak_core_ring()) -> {yes, integer()} | no
 %% @doc Want a partition if we currently have less than floor(ringsize/nodes).
+-spec default_wants_claim(riak_core_ring:riak_core_ring()) -> {yes, non_neg_integer()} | no.
 default_wants_claim(Ring) ->
     default_wants_claim(Ring, node()).
 
+-spec default_wants_claim(riak_core_ring:riak_core_ring(),
+                          chash:chash_node()) -> {yes, non_neg_integer()} | no.
 default_wants_claim(Ring, Node) ->
     %% Determine how many nodes are involved with the ring; if the requested
     %% node is not yet part of the ring, include it in the count.
@@ -98,6 +101,7 @@ default_wants_claim(Ring, Node) ->
 
 %% @spec default_choose_claim(riak_core_ring()) -> riak_core_ring()
 %% @doc Choose a partition at random.
+-spec default_choose_claim(riak_core_ring:riak_core_ring()) -> riak_core_ring:riak_core_ring().
 default_choose_claim(Ring) ->
     default_choose_claim(Ring, node()).
 

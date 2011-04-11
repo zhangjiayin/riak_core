@@ -6,11 +6,10 @@
                   {fsm, undefined, pid()} |        % special case in
                                                    % riak_kv_util:make_request/2.erl
                   ignore.
--type partition() :: non_neg_integer().
 -type vnode_req() :: term().
 
 -record(riak_vnode_req_v1, {
-          index :: partition(),
+          index :: chash:partition(),
           sender=ignore :: sender(),
           request :: vnode_req()}).
 

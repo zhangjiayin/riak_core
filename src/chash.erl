@@ -40,15 +40,21 @@
      merge_rings/2]).
     
 -define(RINGTOP, trunc(math:pow(2,160)-1)).  % SHA-1 space
--include_lib("eunit/include/eunit.hrl").
 
-% @type chash() = {NumPartitions, [NodeEntry]}
-%  NumPartitions = integer()
-%  NodeEntry = {IndexAsInt, Node}
-%  IndexAsInt = integer()
-%  Node = chash_node().
-% It is not recommended that code outside this module make use
-% of the structure of a chash.
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
+-export_type([partition/0, index/0, bin_index/0, chash/0, chash_node/0]).
+
+-type partition() :: non_neg_integer().
+-type index() :: non_neg_integer().
+-type bin_index() :: binary().
+-type chash_node() :: term().
+-type node_entry() :: {partition(), chash_node()}.
+-type partition_count() :: pos_integer().
+-opaque chash() :: {partition_count(), [node_entry()]}.
+
 
 % @type index() = binary().
 % Indices into the ring, used as keys for object location, are binary
@@ -63,42 +69,39 @@
 %      initially all partitions are owned by the seednode.  If NumPartitions
 %      is not much larger than the intended eventual number of
 %       participating nodes, then performance will suffer.
-% @spec fresh(NumPartitions :: integer(), SeedNode :: chash_node()) -> chash()
+-spec fresh(partition_count(), node()) -> chash().
 fresh(NumPartitions, SeedNode) ->
     Inc = ?RINGTOP div NumPartitions,
     {NumPartitions, [{IndexAsInt, SeedNode} ||
            IndexAsInt <- lists:seq(0,(?RINGTOP-1),Inc)]}.
 
 % @doc Find the Node that owns the partition identified by IndexAsInt.
-% @spec lookup(IndexAsInt :: integer(), CHash :: chash()) -> chash_node()
+-spec lookup(partition(), chash()) -> chash_node().
 lookup(IndexAsInt, CHash) ->
     {_NumPartitions, Nodes} = CHash,
     {IndexAsInt, X} = proplists:lookup(IndexAsInt, Nodes),
     X.
 
 % @doc Return true if named Node owns any partitions in the ring, else false.
-% @spec contains_name(Name :: chash_node(), CHash :: chash()) -> bool()
+-spec contains_name(chash_node(), chash()) -> boolean().
 contains_name(Name, CHash) ->
     {_NumPartitions, Nodes} = CHash,
     [X || {_,X} <- Nodes, X == Name] =/= [].
 
 % @doc Make the partition beginning at IndexAsInt owned by Name'd node.
-% @spec update(IndexAsInt :: integer(), Name :: chash_node(), CHash :: chash())
-%                -> chash()
+-spec update(partition(), chash_node(), chash()) -> chash().
 update(IndexAsInt, Name, CHash) ->
     {NumPartitions, Nodes} = CHash,
     NewNodes = lists:keyreplace(IndexAsInt, 1, Nodes, {IndexAsInt, Name}),
     {NumPartitions, NewNodes}.
 
 % @doc Given an object key, return all NodeEntries in order starting at Index.
-% @spec successors(Index :: index(), CHash :: chash()) -> [NodeEntry]
-successors(Index, CHash) ->
-    {NumPartitions, _Nodes} = CHash,
-    successors(Index, CHash, NumPartitions).
+-spec successors(bin_index(), chash()) -> [node_entry()].
+successors(Index, CHash) when is_binary(Index) ->
+    successors(Index, CHash, num_partitions(CHash)).
 % @doc Given an object key, return the next N NodeEntries in order
 %      starting at Index.
-% @spec successors(Index :: index(), CHash :: chash(), N :: integer())
-%                                                             -> [NodeEntry]
+-spec successors(bin_index(), chash(), pos_integer()) -> [node_entry()].
 successors(Index, CHash, N) ->
     Num = max_n(N, CHash),
     {Res, _} = lists:split(Num, ordered_from(Index, CHash)),
@@ -106,14 +109,12 @@ successors(Index, CHash, N) ->
 
 % @doc Given an object key, return all NodeEntries in reverse order
 %      starting at Index.
-% @spec predecessors(Index :: index(), CHash :: chash()) -> [NodeEntry]
+-spec predecessors(bin_index(), chash()) -> [node_entry()].
 predecessors(Index, CHash) ->
-    {NumPartitions, _Nodes} = CHash,
-    predecessors(Index, CHash, NumPartitions).
+    predecessors(Index, CHash, num_partitions(CHash)).
 % @doc Given an object key, return the next N NodeEntries in reverse order
 %      starting at Index.
-% @spec predecessors(Index :: index(), CHash :: chash(), N :: integer())
-%                                                             -> [NodeEntry]
+-spec predecessors(bin_index(), chash(), pos_integer()) -> [node_entry()].
 predecessors(Index, CHash, N) ->
     Num = max_n(N, CHash),
     {Res, _} = lists:split(Num, lists:reverse(ordered_from(Index,CHash))),
@@ -121,13 +122,14 @@ predecessors(Index, CHash, N) ->
 
 % @doc Return either N or the number of partitions in the ring, whichever
 %      is lesser.
-% @spec max_n(N :: integer(), CHash :: chash()) -> integer()
+-spec max_n(pos_integer(), chash()) -> pos_integer().
 max_n(N, {NumPartitions, _Nodes}) ->
     erlang:min(N, NumPartitions).
 
 % @doc Given an object key, return all NodeEntries in order starting at Index.
-% @spec ordered_from(Index :: index(), CHash :: chash()) -> [NodeEntry]
-ordered_from(Index, {NumPartitions, Nodes}) ->
+-spec ordered_from(bin_index(), chash()) -> [node_entry()].
+ordered_from(Index, CHash) ->
+    {NumPartitions, Nodes} = CHash,
     <<IndexAsInt:160/integer>> = Index,
     Inc = ?RINGTOP div NumPartitions,
     {A, B} = lists:split((IndexAsInt div Inc)+1, Nodes),
@@ -136,18 +138,18 @@ ordered_from(Index, {NumPartitions, Nodes}) ->
 % @doc Given any term used to name an object, produce that object's key
 %      into the ring.  Two names with the same SHA-1 hash value are
 %      considered the same name.
-% @spec key_of(ObjectName :: term()) -> index()
+-spec key_of(term()) -> bin_index().
 key_of(ObjectName) ->    
     crypto:sha(term_to_binary(ObjectName)).
 
 % @doc Return all Nodes that own any partitions in the ring.
-% @spec members(CHash :: chash()) -> [Node]
+-spec members(chash()) -> [chash_node()].
 members(CHash) ->
     {_NumPartitions, Nodes} = CHash,
     lists:usort([X || {_Idx,X} <- Nodes]).
 
 % @doc Return the entire set of NodeEntries in the ring.
-% @spec nodes(CHash :: chash()) -> [NodeEntry]
+-spec nodes(chash()) -> [node_entry()].
 nodes(CHash) ->
     {_NumPartitions, Nodes} = CHash,
     Nodes.
@@ -155,22 +157,28 @@ nodes(CHash) ->
 % @doc Return a randomized merge of two rings.
 %      If multiple nodes are actively claiming nodes in the same
 %      time period, churn will occur.  Be prepared to live with it.
-% @spec merge_rings(CHashA :: chash(), CHashB :: chash()) -> chash()
+-spec merge_rings(chash(), chash()) -> chash().
 merge_rings(CHashA,CHashB) ->
     {NumPartitions, NodesA} = CHashA,
     {NumPartitions, NodesB} = CHashB,
     {NumPartitions, [{I,randomnode(A,B)} || 
            {{I,A},{I,B}} <- lists:zip(NodesA,NodesB)]}.
 
-% @spec randomnode(NodeA :: chash_node(), NodeB :: chash_node()) -> chash_node()
+-spec randomnode(chash_node(), chash_node()) -> chash_node().
 randomnode(NodeA,NodeA) -> NodeA;
 randomnode(NodeA,NodeB) -> lists:nth(random:uniform(2),[NodeA,NodeB]).
 
 % @doc Return the number of partitions in the ring.
-% @spec size(CHash :: chash()) -> integer()
+-spec size(chash()) -> pos_integer().
 size(CHash) ->
     {_NumPartitions,Nodes} = CHash,
     length(Nodes).
+
+-spec num_partitions(chash()) -> pos_integer().
+num_partitions(CHash) ->
+    element(1, CHash).
+
+-ifdef(TEST).
 
 update_test() ->
     Node = 'old@host', NewNode = 'new@host',
@@ -212,3 +220,5 @@ merge_test() ->
     CHashB = chash:update(0,node_one,chash:fresh(8,node_two)),
     CHash = chash:merge_rings(CHashA,CHashB),
     ?assertEqual(node_one,chash:lookup(0,CHash)).
+
+-endif.
