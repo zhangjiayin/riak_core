@@ -48,13 +48,15 @@ start_link(VNodeMod, LegacyMod) ->
     gen_server:start_link({local, RegName}, ?MODULE, 
                           [VNodeMod,LegacyMod,RegName], []).
 
+-spec start_vnode(partition(), module()) -> ok.
 start_vnode(Index, VNodeMod) ->
     RegName = reg_name(VNodeMod),
-    gen_server:cast(RegName, {Index, start_vnode}).
+    maybe_cast(Index, {Index, start_vnode}, RegName).
 
+-spec get_vnode_pid(partition(), module()) -> {ok, pid()}.
 get_vnode_pid(Index, VNodeMod) ->
     RegName = reg_name(VNodeMod),
-    gen_server:call(RegName, {Index, get_vnode}, infinity).
+    maybe_call(RegName, {Index, get_vnode}, infinity).
     
 command(Preflist, Msg, VMaster) ->
     command(Preflist, Msg, ignore, VMaster).
@@ -64,6 +66,14 @@ command([], _Msg, _Sender, _VMaster) ->
     ok;
 command([{Index, Pid}|Rest], Msg, Sender, VMaster) when is_pid(Pid) ->
     gen_fsm:send_event(Pid, make_request(Msg, Sender, Index)),
+    command(Rest, Msg, Sender, VMaster);
+command([{Index,Node}|Rest], Msg, Sender, VMaster) when Node =:= node() ->
+    case idx2vnode(Index, VMaster) of
+        VNodePid when is_pid(VNodePid) ->
+            gen_fsm:send_event(VNodePid, make_request(Msg, Sender, Index));
+        no_match -> 
+            gen_server:cast({VMaster, Node}, make_request(Msg, Sender, Index))
+    end,
     command(Rest, Msg, Sender, VMaster);
 command([{Index,Node}|Rest], Msg, Sender, VMaster) ->
     gen_server:cast({VMaster, Node}, make_request(Msg, Sender, Index)),
@@ -106,7 +116,23 @@ make_request(Request, Sender, Index) ->
 %% Request a list of Pids for all vnodes 
 all_nodes(VNodeMod) ->
     RegName = reg_name(VNodeMod),
-    gen_server:call(RegName, all_nodes, infinity).
+    lists:flatten(ets:match(RegName, {idxrec, '_', '$1', '_'})).
+
+%% @private
+maybe_cast(Index, Msg, VMaster) ->
+    case idx2vnode(Index, VMaster) of
+        VNodePid when is_pid(VNodePid) -> 
+            ok;
+        no_match -> gen_server:cast(VMaster, Msg)
+    end.
+
+%% @private
+maybe_call(Index, Msg, VMaster) ->
+    case idx2vnode(Index, VMaster) of
+        VNodePid when is_pid(VNodePid) -> 
+            {ok, VNodePid};
+        no_match -> gen_server:call(VMaster, Msg, infinity)
+    end.
 
 %% @private
 init([VNodeMod, LegacyMod, RegName]) ->
@@ -115,7 +141,7 @@ init([VNodeMod, LegacyMod, RegName]) ->
     %% vnode.
     VnodePids = [Pid || {_, Pid, worker, _}
                             <- supervisor:which_children(riak_core_vnode_sup)],
-    IdxTable = ets:new(RegName, [{keypos, 2}]),
+    RegName = ets:new(RegName, [{keypos, 2}, protected, named_table]),
 
     %% In case this the vnode master is being restarted, scan the existing
     %% vnode children and work out which module and index they are responsible
@@ -136,8 +162,8 @@ init([VNodeMod, LegacyMod, RegName]) ->
                 #idxrec { idx = Idx, pid = Pid, monref = Mref }
         end,
     IdxRecs = [F(Pid, Idx) || {Pid, {Mod, Idx}} <- PidIdxs, Mod =:= VNodeMod],
-    true = ets:insert_new(IdxTable, IdxRecs),
-    {ok, #state{idxtab=IdxTable,
+    true = ets:insert_new(RegName, IdxRecs),
+    {ok, #state{idxtab=RegName,
                 vnode_mod=VNodeMod,
                 legacy=LegacyMod}}.
 
@@ -192,8 +218,8 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->  {ok, State}.
 
 %% @private
-idx2vnode(Idx, _State=#state{idxtab=T}) ->
-    case ets:match(T, {idxrec, Idx, '$1', '_'}) of
+idx2vnode(Idx, Table) ->
+    case ets:match(Table, {idxrec, Idx, '$1', '_'}) of
         [[VNodePid]] -> VNodePid;
         [] -> no_match
     end.
@@ -206,8 +232,8 @@ delmon(MonRef, _State=#state{idxtab=T}) ->
 add_vnode_rec(I,  _State=#state{idxtab=T}) -> ets:insert(T,I).
 
 %% @private
-get_vnode(Idx, State=#state{vnode_mod=Mod}) ->
-    case idx2vnode(Idx, State) of
+get_vnode(Idx, State=#state{vnode_mod=Mod, idxtab=T}) ->
+    case idx2vnode(Idx, T) of
         no_match ->
             {ok, Pid} = riak_core_vnode_sup:start_vnode(Mod, Idx),
             MonRef = erlang:monitor(process, Pid),
