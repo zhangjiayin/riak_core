@@ -48,16 +48,19 @@
 
 %% distribute_ring/1 -
 %% Distribute a ring to all members of that ring.
+-spec distribute_ring(riak_core_ring:riak_core_ring()) -> ok.
 distribute_ring(Ring) ->
     gen_server:cast({?MODULE, node()}, {distribute_ring, Ring}).
 
 %% send_ring/1 -
 %% Send the current node's ring to some other node.
+-spec send_ring(node()) -> ok.
 send_ring(ToNode) -> send_ring(node(), ToNode).
 
 %% send_ring/2 -
 %% Send the ring from one node to another node.
 %% Does nothing if the two nodes are the same.
+-spec send_ring(node(), node()) -> ok.
 send_ring(Node, Node) ->
     ok;
 send_ring(FromNode, ToNode) ->
@@ -165,7 +168,7 @@ claim_until_balanced(Ring) ->
             claim_until_balanced(NewRing)
     end.
 
-
+-spec remove_from_cluster(node()) -> ok.
 remove_from_cluster(ExitingNode) ->
     % Set the remote node to stop claiming.
     % Ignore return of rpc as this should succeed even if node is offline

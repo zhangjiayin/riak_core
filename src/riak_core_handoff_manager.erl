@@ -29,15 +29,20 @@ start_link() ->
 init([]) ->
     {ok, #state{excl=ordsets:new()}}.
 
+-spec add_exclusion(module(), chash:partition()) -> ok.
 add_exclusion(Module, Index) ->
     gen_server:cast(?MODULE, {add_exclusion, {Module, Index}}).
 
+-spec remove_exclusion(module(), chash:partition()) -> ok.
 remove_exclusion(Module, Index) ->
     gen_server:cast(?MODULE, {del_exclusion, {Module, Index}}).    
 
+-spec get_exclusions(module()) -> {ok, [chash:partition()]}.
 get_exclusions(Module) ->
     gen_server:call(?MODULE, {get_exclusions, Module}, infinity).
 
+-spec get_handoff_lock(term()) -> {ok, {handoff_token, non_neg_integer()}} |
+                                  {error, max_concurrency}.
 get_handoff_lock(LockId) ->
     TokenCount = app_helper:get_env(riak_core, handoff_concurrency, 4),
     get_handoff_lock(LockId, TokenCount).
@@ -52,6 +57,7 @@ get_handoff_lock(LockId, Count) ->
             get_handoff_lock(LockId, Count-1)
     end.    
 
+-spec release_handoff_lock(term(), non_neg_integer()) -> true.
 release_handoff_lock(LockId, Token) ->
     global:del_lock({{handoff_token,Token}, {node(), LockId}}, [node()]).
     

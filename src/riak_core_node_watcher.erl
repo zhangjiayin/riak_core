@@ -56,25 +56,31 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-
+-spec service_up(service(), pid()) -> ok.
 service_up(Id, Pid) ->
     gen_server:call(?MODULE, {service_up, Id, Pid}, infinity).
 
+-spec service_down(service()) -> ok.
 service_down(Id) ->
     gen_server:call(?MODULE, {service_down, Id}, infinity).
 
+-spec node_up() -> ok.
 node_up() ->
     gen_server:call(?MODULE, {node_status, up}, infinity).
 
+-spec node_down() -> ok.
 node_down() ->
     gen_server:call(?MODULE, {node_status, down}, infinity).
 
+-spec services() -> [service()].
 services() ->
     ordsets:from_list([Service || [Service] <- ets:match(?MODULE, {{'_', '$1'}, '_'})]).
 
+-spec services(node()) -> [service()].
 services(Node) ->
     [Service || [Service] <- ets:match(?MODULE, {{Node, '$1'}, '_'})].
 
+-spec nodes(service()) -> [node()].
 nodes(Service) ->
     [Node || [Node] <- ets:match(?MODULE, {{'$1', Service}, '_'})].
 

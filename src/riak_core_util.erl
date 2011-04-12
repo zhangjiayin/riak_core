@@ -48,10 +48,10 @@
 %% Public API
 %% ===================================================================
 
-%% @spec moment() -> integer()
 %% @doc Get the current "moment".  Current implementation is the
 %%      number of seconds from year 0 to now, universal time, in
 %%      the gregorian calendar.
+-spec moment() -> non_neg_integer().
 moment() -> calendar:datetime_to_gregorian_seconds(calendar:universal_time()).
 
 %% @spec compare_dates(string(), string()) -> boolean()
@@ -78,9 +78,9 @@ rfc1123_to_now(String) when is_list(String) ->
     MSec = ESec div 1000000,
     {MSec, Sec, 0}.
 
-%% @spec make_tmp_dir() -> string()
 %% @doc Create a unique directory in /tmp.  Returns the path
 %%      to the new directory.
+-spec make_tmp_dir() -> file:filename().
 make_tmp_dir() ->
     TmpId = io_lib:format("riptemp.~p",
                           [erlang:phash2({random:uniform(),self()})]),
@@ -96,6 +96,7 @@ make_tmp_dir() ->
 %%          string()
 %% @doc Convert an integer to its string representation in the given
 %%      base.  Bases 2-62 are supported.
+-spec integer_to_list(integer(), pos_integer()) -> string().
 integer_to_list(I, 10) ->
     erlang:integer_to_list(I);
 integer_to_list(I, Base)
@@ -108,7 +109,7 @@ integer_to_list(I, Base)
 integer_to_list(I, Base) ->
     erlang:error(badarg, [I, Base]).
 
-%% @spec integer_to_list(integer(), integer(), string()) -> string()
+-spec integer_to_list(integer(), pos_integer(), string()) -> string().
 integer_to_list(I0, Base, R0) ->
     D = I0 rem Base,
     I1 = I0 div Base,
@@ -125,9 +126,9 @@ integer_to_list(I0, Base, R0) ->
 	    integer_to_list(I1, Base, R1)
     end.
 
-%% @spec unique_id_62() -> string()
 %% @doc Create a random identifying integer, returning its string
 %%      representation in base 62.
+-spec unique_id_62() -> string().
 unique_id_62() ->
     Rand = crypto:sha(term_to_binary({make_ref(), now()})),
     <<I:160/integer>> = Rand,
@@ -147,27 +148,28 @@ reload_all(Module) ->
      rpc:call(Node, code, load_file, [Module])} ||
         Node <- riak_core_ring:all_members(Ring)].
 
-%% @spec mkclientid(RemoteNode :: term()) -> ClientID :: list()
 %% @doc Create a unique-enough id for vclock clients.
+-spec mkclientid(term()) -> riak_client:client_id().
 mkclientid(RemoteNode) ->
     {{Y,Mo,D},{H,Mi,S}} = erlang:universaltime(),
     {_,_,NowPart} = now(),
     Id = erlang:phash2([Y,Mo,D,H,Mi,S,node(),RemoteNode,NowPart]),
     <<Id:32>>.
 
-%% @spec chash_key(BKey :: riak_object:bkey()) -> chash:index()
 %% @doc Create a binary used for determining replica placement.
+-spec chash_key(riak_object:bkey()) -> chash:bin_index().
 chash_key({Bucket,Key}) ->
     BucketProps = riak_core_bucket:get_bucket(Bucket),
     {chash_keyfun, {M, F}} = proplists:lookup(chash_keyfun, BucketProps),
     M:F({Bucket,Key}).
 
-%% @spec chash_std_keyfun(BKey :: riak_object:bkey()) -> chash:index()
+
 %% @doc Default object/ring hashing fun, direct passthrough of bkey.
+-spec chash_std_keyfun(riak_object:bkey()) -> chash:bin_index().
 chash_std_keyfun({Bucket, Key}) -> chash:key_of({Bucket, Key}).
 
-%% @spec chash_bucketonly_keyfun(BKey :: riak_object:bkey()) -> chash:index()
 %% @doc Object/ring hashing fun that ignores Key, only uses Bucket.
+-spec chash_bucketonly_keyfun(riak_object:bkey()) -> chash:bin_index().
 chash_bucketonly_keyfun({Bucket, _Key}) -> chash:key_of(Bucket).
 
 str_to_node(Node) when is_atom(Node) ->

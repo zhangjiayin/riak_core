@@ -31,7 +31,7 @@
          terminate/2, code_change/3]).
 
 -record(state, {sock :: port(), 
-                partition :: non_neg_integer(), 
+                partition :: chash:partition(),
                 vnode_mod = riak_kv_vnode:: module(),
                 vnode :: pid(), 
                 count = 0 :: non_neg_integer()}).

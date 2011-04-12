@@ -21,7 +21,6 @@
 %% -------------------------------------------------------------------
 
 %% @doc Functions for manipulating bucket properties.
-%% @type riak_core_bucketprops() = [{Propkey :: atom(), Propval :: term()}]
 
 -module(riak_core_bucket).
 
@@ -34,20 +33,25 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-type bucket_props() :: [{atom(), term()}].
+
+-export_type([bucket_props/0]).
+
 %% @doc Add a list of defaults to global list of defaults for new
 %%      buckets.  If any item is in Items is already set in the
 %%      current defaults list, the new setting is omitted, and the old
 %%      setting is kept.  Omitting the new setting is intended
 %%      behavior, to allow settings from app.config to override any
 %%      hard-coded values.
+-spec append_bucket_defaults(bucket_props()) -> ok.
 append_bucket_defaults(Items) when is_list(Items) ->
     OldDefaults = app_helper:get_env(riak_core, default_bucket_props, []),
     NewDefaults = merge_props(OldDefaults, Items),
     application:set_env(riak_core, default_bucket_props, NewDefaults).
 
 
-%% @spec set_bucket(riak_object:bucket(), BucketProps::riak_core_bucketprops()) -> ok
 %% @doc Set the given BucketProps in Bucket.
+-spec set_bucket(riak_object:bucket(), bucket_props()) -> ok.
 set_bucket(Name, BucketProps) ->
     F = fun(Ring, _Args) ->
             OldBucket = get_bucket(Name),
@@ -66,8 +70,6 @@ merge_props(Overriding, Other) ->
     lists:ukeymerge(1, lists:ukeysort(1, Overriding),
                     lists:ukeysort(1, Other)).
 
-%% @spec get_bucket(riak_object:bucket()) ->
-%%         {ok, BucketProps :: riak_core_bucketprops()}
 %% @doc Return the complete current list of properties for Bucket.
 %% Properties include but are not limited to:
 %% <pre>
@@ -76,14 +78,14 @@ merge_props(Overriding, Other) ->
 %% linkfun: a function returning a m/r FunTerm for link extraction
 %% </pre>
 %%
+-spec get_bucket(riak_object:bucket()) -> bucket_props().
 get_bucket(Name) ->
     {ok, Ring} = riak_core_ring_manager:get_my_ring(),
     get_bucket(Name, Ring).
 
 
-%% @spec get_bucket(Name, Ring::riak_core_ring:riak_core_ring()) ->
-%%          BucketProps :: riak_core_bucketprops()
 %% @private
+-spec get_bucket(riak_object:bucket(), riak_core_ring:riak_core_ring()) -> bucket_props().
 get_bucket(Name, Ring) ->
     case riak_core_ring:get_meta({bucket, Name}, Ring) of
         undefined ->

@@ -39,8 +39,9 @@
 %% Public API
 %% ===================================================================
 
-%% @spec http_ip_and_port() -> {string(), integer()} | error
+
 %% @doc Get the HTTP IP address and port number environment variables.
+-spec http_ip_and_port() -> {string(), integer()} | error.
 http_ip_and_port() ->
     case get_riak_core_env(http) of
         [{WebIp, WebPort} | _] ->            
@@ -65,33 +66,34 @@ http_ip_and_port() ->
             end
     end.
 
-%% @spec ring_state_dir() -> string() | undefined
+
 %% @doc Get the ring_state_dir environment variable.
+-spec ring_state_dir() -> file:filename() | undefined.
 ring_state_dir() ->
     get_riak_core_env(ring_state_dir).
 
-%% @spec ring_creation_size() -> integer() | undefined
 %% @doc Get the ring_creation_size environment variable.
+-spec ring_creation_size() -> pos_integer() | undefined.
 ring_creation_size() ->
     get_riak_core_env(ring_creation_size).  
 
-%% @spec cluster_name() -> string() | undefined
 %% @doc Get the cluster_name environment variable.
+-spec cluster_name() -> string() | undefined.
 cluster_name() ->
     get_riak_core_env(cluster_name).
 
-%% @spec gossip_interval() -> integer() | undefined
 %% @doc Get the gossip_interval environment variable.
+-spec gossip_interval() -> pos_integer() | undefined.
 gossip_interval() ->
     get_riak_core_env(gossip_interval).
 
-%% @spec target_n_val() -> integer() | undefined
 %% @doc Get the target_n_val environment variable.
+-spec target_n_val() -> pos_integer() | undefined.
 target_n_val() ->
     get_riak_core_env(target_n_val).
 
-%% @spec default_bucket_props() -> BucketProps::riak_core_bucketprops() | undefined
 %% @doc Get the default_bucket_props environment variable.
+-spec default_bucket_props() -> riak_core_bucket:bucket_props() | undefined.
 default_bucket_props() ->
     get_riak_core_env(default_bucket_props).
 

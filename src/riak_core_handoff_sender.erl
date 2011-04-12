@@ -28,6 +28,7 @@
 -include_lib("riak_core_handoff.hrl").
 -define(ACK_COUNT, 1000).
 
+-spec start_link(node(), module(), chash:partition()) -> {ok, pid()}.
 start_link(TargetNode, Module, Partition) ->
     Self = self(),
     Pid = spawn_link(fun()->start_fold(TargetNode, Module,Partition, Self) end),

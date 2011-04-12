@@ -59,7 +59,6 @@ start_link(test) ->
     gen_server2:start_link({local, ?MODULE}, ?MODULE, [test], []).
 
 
-%% @spec get_my_ring() -> {ok, riak_core_ring:riak_core_ring()} | {error, Reason}
 -spec get_my_ring() -> {ok, riak_core_ring:riak_core_ring()} | {error, no_ring}.
 get_my_ring() ->
     case mochiglobal:get(?RING_KEY) of
@@ -67,18 +66,14 @@ get_my_ring() ->
         Ring -> {ok, Ring}
     end.
 
-%% @spec refresh_my_ring() -> ok
 -spec refresh_my_ring() -> ok.
 refresh_my_ring() ->
     gen_server2:call(?MODULE, refresh_my_ring, infinity).
 
-%% @spec set_my_ring(riak_core_ring:riak_core_ring()) -> ok
 -spec set_my_ring(riak_core_ring:riak_core_ring()) -> ok.
 set_my_ring(Ring) ->
     gen_server2:call(?MODULE, {set_my_ring, Ring}, infinity).
 
-
-%% @spec write_ringfile() -> ok
 -spec write_ringfile() -> ok.
 write_ringfile() ->
     gen_server2:cast(?MODULE, write_ringfile).
@@ -100,7 +95,6 @@ do_write_ringfile(Ring) ->
             ok = file:write_file(FN, term_to_binary(Ring))
     end.
 
-%% @spec find_latest_ringfile() -> string()
 find_latest_ringfile() ->
     Dir = app_helper:get_env(riak_core, ring_state_dir),
     case file:list_dir(Dir) of
@@ -120,13 +114,12 @@ find_latest_ringfile() ->
             {error, Reason}
     end.
 
-%% @spec read_ringfile(string()) -> riak_core_ring:riak_core_ring()
--spec read_ringfile(string()) -> riak_core_ring:riak_core_ring().
+-spec read_ringfile(file:filename()) -> riak_core_ring:riak_core_ring().
 read_ringfile(RingFile) ->
     {ok, Binary} = file:read_file(RingFile),
     binary_to_term(Binary).
 
-%% @spec prune_ringfiles() -> ok
+-spec prune_ringfiles() -> ok.
 prune_ringfiles() ->
     case app_helper:get_env(riak_core, ring_state_dir) of
         "<nostore>" -> ok;
