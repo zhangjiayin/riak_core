@@ -99,7 +99,7 @@ sync_spawn_command({Index,Node}, Msg, VMaster) ->
 
     
 %% Make a request record - exported for use by legacy modules
--spec make_request(vnode_req(), sender(), chash:partition()) -> #riak_vnode_req_v1{}.
+-spec make_request(T, sender(), chash:partition()) -> vnode_req(T).
 make_request(Request, Sender, Index) ->
     #riak_vnode_req_v1{
               index=Index,
