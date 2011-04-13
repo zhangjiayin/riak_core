@@ -22,7 +22,7 @@
 -record(riak_core_fold_req_v2, {
           foldfun :: fun(),
           acc0 :: term(),
-          options :: list()}).
+          options = [] :: list()}).
 
 -define(VNODE_REQ, #riak_vnode_req_v1).
 -define(FOLD_REQ, #riak_core_fold_req_v2).
