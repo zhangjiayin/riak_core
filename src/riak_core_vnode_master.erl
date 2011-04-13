@@ -48,6 +48,7 @@ start_link(VNodeMod, LegacyMod) ->
     gen_server:start_link({local, RegName}, ?MODULE, 
                           [VNodeMod,LegacyMod,RegName], []).
 
+-spec start_vnode(chash:partition(), module()) -> ok.
 start_vnode(Index, VNodeMod) ->
     RegName = reg_name(VNodeMod),
     gen_server:cast(RegName, {Index, start_vnode}).

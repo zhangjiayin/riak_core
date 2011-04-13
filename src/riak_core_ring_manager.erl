@@ -46,6 +46,11 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-type ring_trans_fun() :: fun((riak_core_ring:riak_core_ring(), term()) -> 
+                                     {new_ring, riak_core_ring:riak_core_ring()} |
+                                     ignore).
+                                     
+
 %% ===================================================================
 %% Public API
 %% ===================================================================
@@ -78,6 +83,8 @@ set_my_ring(Ring) ->
 write_ringfile() ->
     gen_server2:cast(?MODULE, write_ringfile).
 
+-spec ring_trans(ring_trans_fun(), term()) -> {ok, riak_core_ring:riak_core_ring()} |
+                                              not_changed.
 ring_trans(Fun, Args) ->
     gen_server2:call(?MODULE, {ring_trans, Fun, Args}, infinity).
 
@@ -95,6 +102,7 @@ do_write_ringfile(Ring) ->
             ok = file:write_file(FN, term_to_binary(Ring))
     end.
 
+-spec find_latest_ringfile() -> {ok, file:filename()} | {error, not_found} | {error, term()}.
 find_latest_ringfile() ->
     Dir = app_helper:get_env(riak_core, ring_state_dir),
     case file:list_dir(Dir) of

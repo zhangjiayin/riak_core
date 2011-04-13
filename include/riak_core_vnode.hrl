@@ -15,9 +15,13 @@
 
 -type vnode_req(T) :: #riak_vnode_req_v1{request::T}.
 
+-type vnode_fold_fun() :: fun((term(), term(), term()) -> term()).
+
 -record(riak_core_fold_req_v1, {
-          foldfun :: fun(),
+          foldfun :: vnode_fold_fun(),
           acc0 :: term()}).
+
+
 
 -define(VNODE_REQ, #riak_vnode_req_v1).
 -define(FOLD_REQ, #riak_core_fold_req_v1).

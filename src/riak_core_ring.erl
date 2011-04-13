@@ -27,7 +27,9 @@
 %%      view of node/partition ownership.
 
 -module(riak_core_ring).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-endif.
 -export([fresh/0,fresh/1,fresh/2,preflist/2,
 	 owner_node/1,all_members/1,num_partitions/1,all_owners/1,
          transfer_node/3, rename_node/3, reconcile/2, my_indices/1,
@@ -312,6 +314,8 @@ update_meta(Key, Val, State) ->
             State
     end.
 
+-ifdef(TEST).
+
 sequence_test() ->
     I1 = 365375409332725729550921208179070754913983135744,
     I2 = 730750818665451459101842416358141509827966271488,
@@ -389,3 +393,5 @@ random_other_node_test() ->
     ?assertEqual(no_node, random_other_node(Ring0)),
     Ring1 = transfer_node(0, 'new@new', Ring0),
     ?assertEqual('new@new', random_other_node(Ring1)).
+
+-endif.
