@@ -33,7 +33,7 @@
          terminate/3, 
          code_change/4]).
 -export([reply/2]).
--export([get_mod_index/1]).
+-export([get_mod_index/1, make_request/3]).
 -export([command/3, command/4, all_nodes/1]).
 -export([sync_command/3, sync_command/4, sync_spawn_command/3]).
 -export([start_vnode/2, get_vnode_pid/2]).
