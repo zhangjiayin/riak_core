@@ -46,35 +46,35 @@
 %% API
 start_vnode(I) ->
 %    io:format("Starting vnode ~p\n", [I]),
-    riak_core_vnode_master:start_vnode(I, ?MODULE).
+    riak_core_vnode:start_vnode(I, ?MODULE).
 
 get_index(Preflist) ->
-    riak_core_vnode_master:sync_command(Preflist, get_index, ?MASTER).
+    riak_core_vnode:sync_command(Preflist, get_index, ?MODULE).
 
 get_counter(Preflist) ->
-    riak_core_vnode_master:sync_command(Preflist, get_counter, ?MASTER).
+    riak_core_vnode:sync_command(Preflist, get_counter, ?MODULE).
 
 neverreply(Preflist) ->
-    riak_core_vnode_master:command(Preflist, neverreply, ?MASTER).
+    riak_core_vnode:command(Preflist, neverreply, ?MODULE).
 
 returnreply(Preflist) ->
     Ref = {neverreply, make_ref()},
-    riak_core_vnode_master:command(Preflist, returnreply, {raw, Ref, self()}, ?MASTER),
+    riak_core_vnode:command(Preflist, returnreply, {raw, Ref, self()}, ?MODULE),
     {ok, Ref}.
 
 latereply(Preflist) ->
     Ref = {latereply, make_ref()},
-    riak_core_vnode_master:command(Preflist, latereply, {raw, Ref, self()}, ?MASTER),
+    riak_core_vnode:command(Preflist, latereply, {raw, Ref, self()}, ?MODULE),
     {ok, Ref}.
 
 crash(Preflist) ->
-    riak_core_vnode_master:sync_command(Preflist, crash, ?MASTER).
+    riak_core_vnode:sync_command(Preflist, crash, ?MODULE).
 
 get_crash_reason(Preflist) ->
-    riak_core_vnode_master:sync_command(Preflist, get_crash_reason, ?MASTER).
+    riak_core_vnode:sync_command(Preflist, get_crash_reason, ?MODULE).
 
 stop(Preflist) ->
-    riak_core_vnode_master:sync_command(Preflist, stop, ?MASTER).
+    riak_core_vnode:sync_command(Preflist, stop, ?MODULE).
 
 
 %% Callbacks

@@ -131,7 +131,7 @@ running(S) ->
      {history, {call,?MODULE,latereply,[active_preflist(S)]}},
      {history, {call,?MODULE,restart_master,[]}},
      {history, {call,mock_vnode,stop,[active_preflist1(S)]}},
-     {history, {call,riak_core_vnode_master,all_nodes,[mock_vnode]}}
+     {history, {call,riak_core_vnode,all_nodes,[mock_vnode]}}
     ].
 
 precondition(_From,_To,#qcst{started=Started},{call,?MODULE,start_vnode,[Index]}) ->
@@ -161,7 +161,7 @@ postcondition(_From,_To,_S,
   when Func =:= neverreply; Func =:= returnreply; Func =:= latereply ->
     Result =:= ok;
 postcondition(_From,_To,_S,
-              {call,riak_core_vnode_master,all_nodes,[mock_vnode]},Result) ->
+              {call,riak_core_vnode,all_nodes,[mock_vnode]},Result) ->
     Pids = [Pid || {_,Pid,_,_} <- supervisor:which_children(riak_core_vnode_sup)],
     lists:sort(Result) =:= lists:sort(Pids);
 postcondition(_From,_To,_S,_C,_R) ->
@@ -211,7 +211,7 @@ start_servers() ->
 stop_servers() ->
     %% Make sure VMaster is killed before sup as start_vnode is a cast
     %% and there may be a pending request to start the vnode.
-    stop_pid(whereis(mock_vnode_master)),
+    stop_pid(whereis(mock_vnode)),
     stop_pid(whereis(riak_core_vnode_sup)).
 
 restart_master() ->
@@ -219,8 +219,8 @@ restart_master() ->
     %% has processed any commands that were cast to it.  Otherwise
     %% commands like neverreply are not cast on to the vnode and the
     %% counters are not updated correctly.
-    sys:get_status(mock_vnode_master),
-    stop_pid(whereis(mock_vnode_master)),
+    sys:get_status(mock_vnode),
+    stop_pid(whereis(mock_vnode)),
     {ok, _VMaster} = riak_core_vnode_master:start_link(mock_vnode).
 
 stop_pid(undefined) ->

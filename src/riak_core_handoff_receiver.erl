@@ -74,7 +74,7 @@ handle_info({tcp, Socket, Data}, State) ->
 process_message(?PT_MSG_INIT, MsgData, State=#state{vnode_mod=VNodeMod}) ->
     <<Partition:160/integer>> = MsgData,
     error_logger:info_msg("Receiving handoff data for partition ~p:~p~n", [VNodeMod, Partition]),
-    {ok, VNode} = riak_core_vnode_master:get_vnode_pid(Partition, VNodeMod),
+    {ok, VNode} = riak_core_vnode:get_vnode_pid(Partition, VNodeMod),
     State#state{partition=Partition, vnode=VNode};
 process_message(?PT_MSG_OBJ, MsgData, State=#state{vnode=VNode, count=Count}) ->
     Msg = {handoff_data, MsgData},

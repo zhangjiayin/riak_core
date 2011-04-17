@@ -50,7 +50,6 @@ start_fold(TargetNode, Module, Partition, ParentPid) ->
          %% just do a sync, newer nodes will decode the module name.
          %% After 0.12.0 the calls can be switched to use PT_MSG_SYNC
          %% and PT_MSG_CONFIGURE
-         VMaster = list_to_atom(atom_to_list(Module) ++ "_master"),
          ModBin = atom_to_binary(Module, utf8),
          Msg = <<?PT_MSG_OLDSYNC:8,ModBin/binary>>,
          ok = gen_tcp:send(Socket, Msg),
@@ -59,11 +58,11 @@ start_fold(TargetNode, Module, Partition, ParentPid) ->
          ok = gen_tcp:send(Socket, M),
          StartFoldTime = now(),
          {Socket,ParentPid,Module,_Ack,SentCount,ErrStatus} = 
-             riak_core_vnode_master:sync_command({Partition, node()},
-                                                 ?FOLD_REQ{
-                                                    foldfun=fun visit_item/3,
-                                                    acc0={Socket,ParentPid,Module,0,0,ok}},
-                                                 VMaster, infinity),
+             riak_core_vnode:sync_command({Partition, node()},
+                                          ?FOLD_REQ{
+                                             foldfun=fun visit_item/3,
+                                             acc0={Socket,ParentPid,Module,0,0,ok}},
+                                          Module, infinity),
          EndFoldTime = now(),
          case ErrStatus of
              ok ->

@@ -34,7 +34,9 @@
          code_change/4]).
 -export([reply/2]).
 -export([get_mod_index/1]).
-
+-export([command/3, command/4, all_nodes/1]).
+-export([sync_command/3, sync_command/4, sync_spawn_command/3]).
+-export([start_vnode/2, get_vnode_pid/2]).
 -spec behaviour_info(atom()) -> 'undefined' | [{atom(), arity()}].
 behaviour_info(callbacks) ->
     [{init,1},
@@ -83,6 +85,65 @@ start_link(Mod, Index) ->
 
 start_link(Mod, Index, InitialInactivityTimeout) ->
     gen_fsm:start_link(?MODULE, [Mod, Index, InitialInactivityTimeout], []).
+
+start_vnode(Index, VNodeMod) ->
+    gen_server:cast(VNodeMod, {Index, start_vnode}).
+
+get_vnode_pid(Index, VNodeMod) ->
+    gen_server:call(VNodeMod, {Index, get_vnode}, infinity).
+
+command(Preflist, Msg, VNodeMod) ->
+    command(Preflist, Msg, ignore, VNodeMod).
+
+command([], _Msg, _Sender, _VNodeMod) ->
+    ok;
+command([{Index, Pid}|Rest], Msg, Sender, VNodeMod) when is_pid(Pid) ->
+    gen_fsm:send_event(Pid, make_request(Msg, Sender, Index)),
+    command(Rest, Msg, Sender, VNodeMod);
+command([{Index, Node}|Rest], Msg, Sender, VNodeMod) ->
+    gen_server:cast({VNodeMod, Node}, make_request(Msg, Sender, Index)),
+    command(Rest, Msg, Sender, VNodeMod);
+
+%
+%% Send the command to an individual Index/Node combination
+command({Index,Node}, Msg, Sender, VNodeMod) ->
+    gen_server:cast({VNodeMod, Node}, make_request(Msg, Sender, Index)).
+
+% Send a synchronous command to an individual Index/Node combination.
+% Will not return until the vnode has returned
+sync_command(IndexNode, Msg, VNodeMod) ->
+    sync_command(IndexNode, Msg, VNodeMod, ?DEFAULT_TIMEOUT).
+
+sync_command({Index,Node}, Msg, VNodeMod, Timeout) ->
+    %% Issue the call to the master, it will update the Sender with
+    %% the From for handle_call so that the {reply} return gets 
+    %% sent here.
+    gen_server:call({VNodeMod, Node}, 
+                    make_request(Msg, {server, undefined, undefined}, Index), Timeout).
+
+
+% Send a synchronous spawned command to an individual Index/Node combination.
+% Will not return until the vnode has returned, but the vnode_master will
+% continue to handle requests.
+sync_spawn_command({Index,Node}, Msg, VNodeMod) ->
+    gen_server:call({VNodeMod, Node}, 
+                    {spawn, make_request(Msg, {server, undefined, undefined}, Index)},
+                    infinity).
+
+    
+%% Make a request record - exported for use by legacy modules
+-spec make_request(vnode_req(), sender(), partition()) -> #riak_vnode_req_v1{}.
+make_request(Request, Sender, Index) ->
+    #riak_vnode_req_v1{
+              index=Index,
+              sender=Sender,
+              request=Request}.
+
+%% Request a list of Pids for all vnodes 
+all_nodes(VNodeMod) ->
+    gen_server:call(VNodeMod, all_nodes, infinity).
+
+
 
 %% Send a command message for the vnode module by Pid - 
 %% typically to do some deferred processing after returning yourself
@@ -138,8 +199,7 @@ vnode_handoff_command(Sender, Request, State=#state{index=Index,
         {noreply, NewModState} ->
             continue(State, NewModState);
         {forward, NewModState} ->
-            riak_core_vnode_master:command({Index, HN}, Request, Sender, 
-                                           riak_core_vnode_master:reg_name(Mod)),
+            command({Index, HN}, Request, Sender, Mod),
             continue(State, NewModState);
         {drop, NewModState} ->
             continue(State, NewModState);
