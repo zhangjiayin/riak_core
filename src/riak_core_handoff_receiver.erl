@@ -34,7 +34,7 @@
 -record(state, {sock :: port(), 
                 ssl_opts :: [] | list(),
                 tcp_mod :: atom(),
-                partition :: non_neg_integer(), 
+                partition :: chash:partition(),
                 vnode_mod = riak_kv_vnode:: module(),
                 vnode :: pid(), 
                 count = 0 :: non_neg_integer()}).

@@ -58,26 +58,33 @@ add_sup_handler(Handler, Args) ->
 add_guarded_handler(Handler, Args) ->
     riak_core:add_guarded_event_handler(?MODULE, Handler, Args).
 
+-spec add_callback(fun()) -> ok.
 add_callback(Fn) when is_function(Fn) ->
     gen_event:add_handler(?MODULE, {?MODULE, make_ref()}, [Fn]).
 
+-spec add_sup_callback(fun()) -> ok.
 add_sup_callback(Fn) when is_function(Fn) ->
     gen_event:add_sup_handler(?MODULE, {?MODULE, make_ref()}, [Fn]).
 
+-spec add_guarded_callback(fun()) -> ok.
 add_guarded_callback(Fn) when is_function(Fn) ->
     riak_core:add_guarded_event_handler(?MODULE, {?MODULE, make_ref()}, [Fn]).
 
+-spec force_update() -> ok.
 force_update() ->
     {ok, Ring} = riak_core_ring_manager:get_my_ring(),
     ring_update(Ring).
 
+-spec ring_update(riak_core_ring:riak_core_ring()) -> ok.
 ring_update(Ring) ->
     gen_event:notify(?MODULE, {ring_update, Ring}).
 
+-spec force_sync_update() -> ok.
 force_sync_update() ->
     {ok, Ring} = riak_core_ring_manager:get_my_ring(),
     ring_sync_update(Ring).
 
+-spec ring_sync_update(riak_core_ring:riak_core_ring()) -> ok.
 ring_sync_update(Ring) ->
     gen_event:sync_notify(?MODULE, {ring_update, Ring}).
 

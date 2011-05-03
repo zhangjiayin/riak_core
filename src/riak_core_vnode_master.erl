@@ -48,18 +48,23 @@ start_link(VNodeMod, LegacyMod) ->
     gen_server:start_link({local, RegName}, ?MODULE, 
                           [VNodeMod,LegacyMod,RegName], []).
 
+-spec start_vnode(chash:partition(), module()) -> ok.
 start_vnode(Index, VNodeMod) ->
     RegName = reg_name(VNodeMod),
     gen_server:cast(RegName, {Index, start_vnode}).
 
+-spec get_vnode_pid(chash:partition(), module()) -> {ok, pid()}.
 get_vnode_pid(Index, VNodeMod) ->
     RegName = reg_name(VNodeMod),
     gen_server:call(RegName, {Index, get_vnode}, infinity).
-    
+
+-spec command(riak_core_apl:preflist(), term(), atom()) -> ok.
 command(Preflist, Msg, VMaster) ->
     command(Preflist, Msg, ignore, VMaster).
      
 %% Send the command to the preflist given with responses going to Sender
+-spec command(riak_core_apl:preflist(), term(), sender(), atom()) -> ok;
+             ({chash:partition(), node()}, term(), sender(), atom()) -> ok.
 command([], _Msg, _Sender, _VMaster) ->
     ok;
 command([{Index, Pid}|Rest], Msg, Sender, VMaster) when is_pid(Pid) ->
@@ -68,7 +73,6 @@ command([{Index, Pid}|Rest], Msg, Sender, VMaster) when is_pid(Pid) ->
 command([{Index,Node}|Rest], Msg, Sender, VMaster) ->
     gen_server:cast({VMaster, Node}, make_request(Msg, Sender, Index)),
     command(Rest, Msg, Sender, VMaster);
-
 %% Send the command to an individual Index/Node combination
 command({Index,Node}, Msg, Sender, VMaster) ->
     gen_server:cast({VMaster, Node}, make_request(Msg, Sender, Index)).
@@ -96,7 +100,7 @@ sync_spawn_command({Index,Node}, Msg, VMaster) ->
 
     
 %% Make a request record - exported for use by legacy modules
--spec make_request(vnode_req(), sender(), partition()) -> #riak_vnode_req_v1{}.
+-spec make_request(T, sender(), chash:partition()) -> vnode_req(T).
 make_request(Request, Sender, Index) ->
     #riak_vnode_req_v1{
               index=Index,
@@ -104,6 +108,7 @@ make_request(Request, Sender, Index) ->
               request=Request}.
 
 %% Request a list of Pids for all vnodes 
+-spec all_nodes(module()) -> [pid()].
 all_nodes(VNodeMod) ->
     RegName = reg_name(VNodeMod),
     gen_server:call(RegName, all_nodes, infinity).

@@ -36,6 +36,7 @@ stop(Reason) ->
     % we just stop the application.
     application:stop(riak_core).
 -else.
+-spec stop(term()) -> no_return().
 stop(Reason) ->
     % we never do an application:stop because that makes it very hard
     %  to really halt the runtime, which is what we need here.
@@ -43,12 +44,14 @@ stop(Reason) ->
     init:stop().
 -endif.
 
+-spec vnode_modules() -> [] | [{atom(),module()}].
 vnode_modules() ->
     case application:get_env(riak_core, vnode_modules) of
         undefined -> [];
         {ok, Mods} -> Mods
     end.
 
+-spec register_vnode_module(module()) -> ok.
 register_vnode_module(VNodeMod) when is_atom(VNodeMod)  ->
     {ok, App} = case application:get_application(self()) of
         {ok, AppName} -> {ok, AppName};

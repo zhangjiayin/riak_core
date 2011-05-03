@@ -23,7 +23,6 @@
 %% @doc the local view of the cluster's ring configuration
 
 -module(riak_core_ring_manager).
--include_lib("eunit/include/eunit.hrl").
 -define(RING_KEY, riak_ring).
 -behaviour(gen_server2).
 
@@ -42,11 +41,15 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
-
 -ifdef(TEST).
 -export([set_ring_global/1]).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
+
+-type ring_trans_fun() :: fun((riak_core_ring:riak_core_ring(), term()) -> 
+                                     {new_ring, riak_core_ring:riak_core_ring()} |
+                                     ignore).
+                                     
 
 %% ===================================================================
 %% Public API
@@ -61,30 +64,31 @@ start_link(test) ->
     gen_server2:start_link({local, ?MODULE}, ?MODULE, [test], []).
 
 
-%% @spec get_my_ring() -> {ok, riak_core_ring:riak_core_ring()} | {error, Reason}
+-spec get_my_ring() -> {ok, riak_core_ring:riak_core_ring()} | {error, no_ring}.
 get_my_ring() ->
     case mochiglobal:get(?RING_KEY) of
-        Ring when is_tuple(Ring) -> {ok, Ring};
-        undefined -> {error, no_ring}
+        undefined -> {error, no_ring};
+        Ring -> {ok, Ring}
     end.
 
-%% @spec refresh_my_ring() -> ok
+-spec refresh_my_ring() -> ok.
 refresh_my_ring() ->
     gen_server2:call(?MODULE, refresh_my_ring, infinity).
 
-%% @spec set_my_ring(riak_core_ring:riak_core_ring()) -> ok
+-spec set_my_ring(riak_core_ring:riak_core_ring()) -> ok.
 set_my_ring(Ring) ->
     gen_server2:call(?MODULE, {set_my_ring, Ring}, infinity).
 
-
-%% @spec write_ringfile() -> ok
+-spec write_ringfile() -> ok.
 write_ringfile() ->
     gen_server2:cast(?MODULE, write_ringfile).
 
+-spec ring_trans(ring_trans_fun(), term()) -> {ok, riak_core_ring:riak_core_ring()} |
+                                              not_changed.
 ring_trans(Fun, Args) ->
     gen_server2:call(?MODULE, {ring_trans, Fun, Args}, infinity).
 
-
+-spec do_write_ringfile(riak_core_ring:riak_core_ring()) -> ok | nop.
 do_write_ringfile(Ring) ->
     {{Year, Month, Day},{Hour, Minute, Second}} = calendar:universal_time(),
     TS = io_lib:format(".~B~2.10.0B~2.10.0B~2.10.0B~2.10.0B~2.10.0B",
@@ -98,7 +102,7 @@ do_write_ringfile(Ring) ->
             ok = file:write_file(FN, term_to_binary(Ring))
     end.
 
-%% @spec find_latest_ringfile() -> string()
+-spec find_latest_ringfile() -> {ok, file:filename()} | {error, not_found} | {error, term()}.
 find_latest_ringfile() ->
     Dir = app_helper:get_env(riak_core, ring_state_dir),
     case file:list_dir(Dir) of
@@ -118,12 +122,12 @@ find_latest_ringfile() ->
             {error, Reason}
     end.
 
-%% @spec read_ringfile(string()) -> riak_core_ring:riak_core_ring()
+-spec read_ringfile(file:filename()) -> riak_core_ring:riak_core_ring().
 read_ringfile(RingFile) ->
     {ok, Binary} = file:read_file(RingFile),
     binary_to_term(Binary).
 
-%% @spec prune_ringfiles() -> ok
+-spec prune_ringfiles() -> ok.
 prune_ringfiles() ->
     case app_helper:get_env(riak_core, ring_state_dir) of
         "<nostore>" -> ok;
@@ -266,10 +270,12 @@ back(N,X,[H|T]) ->
 %% Set the ring in mochiglobal.  Exported during unit testing
 %% to make test setup simpler - no need to spin up a riak_core_ring_manager
 %% process.
+-spec set_ring_global(riak_core_ring:riak_core_ring()) -> ok.
 set_ring_global(Ring) ->
-    mochiglobal:put(?RING_KEY, Ring).
+    mochiglobal:put(?RING_KEY, riak_core_ring:to_term(Ring)).
 
 %% Persist a new ring file, set the global value and notify any listeners
+-spec prune_write_notify_ring(riak_core_ring:riak_core_ring()) -> ok.
 prune_write_notify_ring(Ring) ->
     riak_core_ring_manager:prune_ringfiles(),
     do_write_ringfile(Ring),

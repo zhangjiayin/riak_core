@@ -28,6 +28,7 @@
 -include_lib("riak_core_handoff.hrl").
 -define(ACK_COUNT, 1000).
 
+-spec start_link(node(), module(), chash:partition()) -> {ok, pid()}.
 start_link(TargetNode, Module, Partition) ->
     Self = self(),
     SslOpts = get_handoff_ssl_options(),

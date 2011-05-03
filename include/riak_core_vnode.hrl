@@ -6,18 +6,22 @@
                   {fsm, undefined, pid()} |        % special case in
                                                    % riak_kv_util:make_request/2.erl
                   ignore.
--type partition() :: non_neg_integer().
--type vnode_req() :: term().
+
 
 -record(riak_vnode_req_v1, {
-          index :: partition(),
+          index :: chash:partition(),
           sender=ignore :: sender(),
-          request :: vnode_req()}).
+          request}).
 
+-type vnode_req(T) :: #riak_vnode_req_v1{request::T}.
+
+-type vnode_fold_fun() :: fun((term(), term(), term()) -> term()).
 
 -record(riak_core_fold_req_v1, {
-          foldfun :: fun(),
+          foldfun :: vnode_fold_fun(),
           acc0 :: term()}).
+
+
 
 -define(VNODE_REQ, #riak_vnode_req_v1).
 -define(FOLD_REQ, #riak_core_fold_req_v1).
