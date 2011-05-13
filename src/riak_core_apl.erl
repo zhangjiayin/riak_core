@@ -53,14 +53,14 @@ active_owners(Ring, UpNodes) ->
     lists:reverse(Up).
 
 %% Get the active preflist taking account of which nodes are up
--spec get_apl(chash:bin_index(), riak_client:n_val(), riak_core_node_watcher:service()) -> preflist().
+-spec get_apl(chash:bin_index(), riak_core:n_val(), riak_core_node_watcher:service()) -> preflist().
 get_apl(DocIdx, N, Service) ->
     {ok, Ring} = riak_core_ring_manager:get_my_ring(),
     get_apl(DocIdx, N, Ring, riak_core_node_watcher:nodes(Service)).
 
 %% Get the active preflist taking account of which nodes are up
 %% for a given ring/upnodes list
--spec get_apl(chash:bin_index(), riak_client:n_val(), ring(), [chash:chash_node()]) -> preflist().
+-spec get_apl(chash:bin_index(), riak_core:n_val(), ring(), [chash:chash_node()]) -> preflist().
 get_apl(DocIdx, N, Ring, UpNodes) ->
     [{Partition, Node} || {{Partition, Node}, _Type} <- 
                               get_apl_ann(DocIdx, N, Ring, UpNodes)].
@@ -68,7 +68,7 @@ get_apl(DocIdx, N, Ring, UpNodes) ->
 %% Get the active preflist taking account of which nodes are up
 %% for a given ring/upnodes list and annotate each node with type of
 %% primary/fallback
--spec get_apl_ann(chash:bin_index(), riak_client:n_val(), ring(), [chash:chash_node()]) -> preflist2().
+-spec get_apl_ann(chash:bin_index(), riak_core:n_val(), ring(), [chash:chash_node()]) -> preflist2().
 get_apl_ann(DocIdx, N, Ring, UpNodes) ->
     UpNodes1 = ordsets:from_list(UpNodes),
     Preflist = riak_core_ring:preflist(DocIdx, Ring),
@@ -77,13 +77,13 @@ get_apl_ann(DocIdx, N, Ring, UpNodes) ->
     lists:reverse(Up) ++ find_fallbacks(Pangs, Fallbacks, UpNodes1, []).
 
 %% Same as get_apl, but returns only the primaries.
--spec get_primary_apl(chash:bin_index(), riak_client:n_val(), riak_core_node_watcher:service()) -> preflist().
+-spec get_primary_apl(chash:bin_index(), riak_core:n_val(), riak_core_node_watcher:service()) -> preflist().
 get_primary_apl(DocIdx, N, Service) ->
     {ok, Ring} = riak_core_ring_manager:get_my_ring(),
     get_primary_apl(DocIdx, N, Ring, riak_core_node_watcher:nodes(Service)).
 
 %% Same as get_apl, but returns only the primaries.
--spec get_primary_apl(chash:bin_index(), riak_client:n_val(), ring(), [chash:chash_node()]) -> preflist().
+-spec get_primary_apl(chash:bin_index(), riak_core:n_val(), ring(), [chash:chash_node()]) -> preflist().
 get_primary_apl(DocIdx, N, Ring, UpNodes) ->
     UpNodes1 = ordsets:from_list(UpNodes),
     Preflist = riak_core_ring:preflist(DocIdx, Ring),

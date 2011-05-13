@@ -25,6 +25,37 @@
 -export([add_guarded_event_handler/3, add_guarded_event_handler/4]).
 -export([delete_guarded_event_handler/3]).
 
+-export_type([quorum_type/0,
+              symbolic_rw_val/0,
+              integer_rw_val/0,
+              n_val/0, 
+              r_val/0,
+              w_val/0,
+              rw_val/0,
+              dw_val/0,
+              pw_val/0,
+              pr_val/0,
+              pos_quorum_val/0,
+              non_neg_quorum_val/0,
+              quorum_val/0]).
+
+-type quorum_type() :: r | w | rw | dw | pw | pr.
+-type symbolic_rw_val() :: one | quorum | all | default.
+-type pos_rw_val() :: pos_integer().
+-type non_neg_rw_val() :: non_neg_integer().
+-type integer_rw_val() :: pos_rw_val() | non_neg_rw_val().
+-type n_val()  :: non_neg_rw_val().
+-type quorum_val_t(IntType) :: symbolic_rw_val() | IntType.
+-type pos_quorum_val() :: quorum_val_t(pos_rw_val()).
+-type non_neg_quorum_val() :: quorum_val_t(non_neg_rw_val()).
+-type r_val()  :: non_neg_quorum_val().
+-type w_val()  :: non_neg_quorum_val().
+-type rw_val() :: pos_quorum_val().
+-type dw_val() :: non_neg_quorum_val().
+-type pw_val() :: non_neg_quorum_val().
+-type pr_val() :: non_neg_quorum_val().
+-type quorum_val() :: pos_quorum_val() | non_neg_quorum_val().
+
 %% @spec stop() -> ok
 %% @doc Stop the riak application and the calling process.
 stop() -> stop("riak stop requested").
