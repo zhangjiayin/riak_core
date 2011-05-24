@@ -126,3 +126,12 @@ test_spiraltime() ->
     {PlusOne, 3} = rep_second(S2),
     {PlusOne, 20} = rep_minute(S2),
     true.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+bad_arg_test() ->
+    S0 = fresh(60),
+    incr(1, 0, S0).
+
+-endif.
