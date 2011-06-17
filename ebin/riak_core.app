@@ -47,8 +47,10 @@
              riak_core_vnode_sup,
              riak_core_web,
              riak_core_wm_urlmap,
+             riak_core_wm_ring_resource,
              slide,
              spiraltime,
+             riak_core_wm_static_resource,
              vclock
             ]},
   {registered, []},

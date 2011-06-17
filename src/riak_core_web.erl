@@ -98,4 +98,9 @@ spec_name(Scheme, Ip, Port) ->
 common_config() ->
   [{log_dir, app_helper:get_env(riak_core, http_logdir, "log")},
     {backlog, 128},
-    {dispatch, [{[], riak_core_wm_urlmap, []}]}].
+    {dispatch, [{[], riak_core_wm_urlmap, []},
+            {["ring"], riak_core_wm_ring_resource, []},
+            {['*'], riak_core_wm_static_resource,
+                [filename:join(code:priv_dir(riak_core), "www")]}
+                %["/home/andrew/riak/deps/riak_core/priv/www"]}
+        ]}].
