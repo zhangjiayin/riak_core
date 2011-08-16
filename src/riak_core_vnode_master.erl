@@ -241,6 +241,7 @@ add_vnode_rec(I,  _State=#state{idxtab=T}) -> ets:insert(T,I).
 
 %% @private
 get_vnode(Idx, State=#state{vnode_mod=Mod}) ->
+    erlang:garbage_collect(),
     case idx2vnode(Idx, State) of
         no_match ->
             {ok, Pid} = riak_core_vnode_sup:start_vnode(Mod, Idx),

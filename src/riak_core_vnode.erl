@@ -120,9 +120,11 @@ get_mod_index(VNode) ->
     gen_fsm:sync_send_all_state_event(VNode, get_mod_index).
 
 continue(State) ->
+    erlang:garbage_collect(),
     {next_state, active, State, State#state.inactivity_timeout}.
 
 continue(State, NewModState) ->
+    erlang:garbage_collect(),
     continue(State#state{modstate=NewModState}).
     
 
