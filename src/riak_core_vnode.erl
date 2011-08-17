@@ -124,7 +124,6 @@ continue(State) ->
     {next_state, active, State, State#state.inactivity_timeout}.
 
 continue(State, NewModState) ->
-    erlang:garbage_collect(),
     continue(State#state{modstate=NewModState}).
     
 
