@@ -372,8 +372,8 @@ handle_info({'EXIT', Pid, Reason}, StateName, State=#state{mod=Mod,modstate=ModS
             {noreply,NewModState} ->
                 {next_state, StateName, State#state{modstate=NewModState},
                     State#state.inactivity_timeout};
-            {stop, Reason, NewModState} ->
-                 {stop, Reason, State#state{modstate=NewModState}}
+            {stop, ModReason, NewModState} ->
+                 {stop, ModReason, State#state{modstate=NewModState}}
         end
     catch
         _ErrorType:undef ->
