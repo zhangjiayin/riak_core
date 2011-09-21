@@ -22,9 +22,12 @@
 -export([behaviour_info/1]).
 -export([start_link/2,
          start_link/3,
+         stop/1,
          send_command/2,
          send_command_after/2]).
--export([init/1, 
+-export([init/1,
+         shutdown/2,
+         shutdown/3,
          active/2, 
          active/3, 
          handle_event/3,
@@ -78,6 +81,7 @@ behaviour_info(_Other) ->
 %% Here is what the spec for handle_info/2 would look like:
 %% -spec handle_info(term(), term()) -> {ok, term()}
 
+-define(SHUTDOWN_TIMEOUT, 60000).
 -define(DEFAULT_TIMEOUT, 60000).
 -define(LOCK_RETRY_TIMEOUT, 10000).
 -define(MODSTATE, State#state{mod=Mod,modstate=ModState}).
@@ -97,6 +101,10 @@ start_link(Mod, Index) ->
 
 start_link(Mod, Index, InitialInactivityTimeout) ->
     gen_fsm:start_link(?MODULE, [Mod, Index, InitialInactivityTimeout], []).
+
+%% Stop the vnode
+stop(Pid) ->
+    gen_fsm:send_event(Pid, stop).
 
 %% Send a command message for the vnode module by Pid - 
 %% typically to do some deferred processing after returning yourself
@@ -275,6 +283,8 @@ vnode_handoff_command(Sender, Request, State=#state{index=Index,
 
 active(timeout, State) ->
     maybe_handoff(State);
+active(stop, State) ->
+    {stop, normal, State};
 active(?COVERAGE_REQ{keyspaces=KeySpaces, 
                      request=Request,
                      sender=Sender},
@@ -312,50 +322,61 @@ active(_Event, _From, State) ->
     Reply = ok,
     {reply, Reply, active, State, State#state.inactivity_timeout}.
 
+shutdown(Event, State=#state{index=Idx, mod=Mod, pool_pid=PoolPid}) 
+  when Event == timeout; Event == stop ->
+    case is_pid(PoolPid) of
+        false ->
+            {stop, normal, State};
+        true ->
+            lager:info("~p ~p Waiting for pool to shutdown", [Idx, Mod]),
+            {next_state, shutdown, State, ?SHUTDOWN_TIMEOUT}
+    end;
+shutdown(?VNODE_REQ{sender = Sender}, State) ->
+    riak_core_vnode:reply(Sender, {error, shutdown}),
+    {next_state, shutdown, State, ?SHUTDOWN_TIMEOUT};
+shutdown(?COVERAGE_REQ{sender = Sender}, State) ->
+    riak_core_vnode:reply(Sender, {error, shutdown}),
+    {next_state, shutdown, State, ?SHUTDOWN_TIMEOUT};
+shutdown(_, State) ->
+    {next_state, shutdown, State, ?SHUTDOWN_TIMEOUT}.
+
+shutdown(_Event, _From, State) ->
+    {reply, {error, shutdown}, shutdown, State, ?SHUTDOWN_TIMEOUT}.
+
+
 finish_handoff(State=#state{mod=Mod, 
                             modstate=ModState,
                             index=Idx,
-                            pool_pid=Pool,
                             handoff_node=HN}) ->
     case riak_core_gossip:finish_handoff(Idx, node(), HN, Mod) of
         forward ->
-            case is_pid(Pool) of
-                true ->
-                    riak_core_vnode_worker_pool:shutdown_pool(Pool, 60000);
-                _ ->
-                    ok
-            end,
             {ok, NewModState} = Mod:delete(ModState),
-            {stop, normal, State#state{modstate=NewModState,
+            start_shutdown(State#state{modstate=NewModState,
                                        handoff_node=none,
-                                       pool_pid=undefined,
-                                       handoff_pid=undefined}};
+                                       handoff_pid=undefined});
         continue ->
+            lager:info("~p ~p finish_handoff ignored\n", [Idx, Mod]),
+
             continue(State#state{handoff_node=none,
                                  handoff_pid=undefined});
         shutdown ->
-            case is_pid(Pool) of
-                true ->
-                    riak_core_vnode_worker_pool:shutdown_pool(Pool, 60000);
-                _ ->
-                    ok
-            end,
             {ok, NewModState} = Mod:delete(ModState),
             riak_core_handoff_manager:add_exclusion(Mod, Idx),
-            {stop, normal, State#state{modstate=NewModState,
+            start_shutdown(State#state{modstate=NewModState,
                                        handoff_node=none,
-                                       pool_pid=undefined,
-                                       handoff_pid=undefined}}
+                                       handoff_pid=undefined})
     end.
 
-handle_event(R={update_forwarding, _Ring}, _StateName, State) ->
-    active(R, State);
-handle_event(R=trigger_handoff, _StateName, State) ->
-    active(R, State);
-handle_event(R=?VNODE_REQ{}, _StateName, State) ->
-    active(R, State);
-handle_event(R=?COVERAGE_REQ{}, _StateName, State) ->
-    active(R, State).
+handle_event(R=stop, StateName, State) ->
+    ?MODULE:StateName(R, State);
+handle_event(R={update_forwarding, _Ring}, StateName, State) ->
+    ?MODULE:StateName(R, State);
+handle_event(R=trigger_handoff, StateName, State) ->
+    ?MODULE:StateName(R, State);
+handle_event(R=?VNODE_REQ{}, StateName, State) ->
+    ?MODULE:StateName(R, State);
+handle_event(R=?COVERAGE_REQ{}, StateName, State) ->
+    ?MODULE:StateName(R, State).
 
 
 handle_sync_event(get_mod_index, _From, StateName,
@@ -373,8 +394,11 @@ handle_sync_event({handoff_data,BinObj}, _From, StateName,
              State#state.inactivity_timeout}
     end.
 
-handle_info({'EXIT', Pid, _Reason}, _StateName, State=#state{handoff_pid=Pid}) ->
-    continue(State#state{handoff_pid=undefined});
+handle_info({'EXIT', Pid, shutdown}, shutdown=StateName, State=#state{pool_pid=Pid}) ->
+    %% Async pool has completed shutdown requested in start_shutdown.
+    {next_state, StateName, State#state{pool_pid=undefined}};
+handle_info({'EXIT', Pid, _Reason}, StateName, State=#state{handoff_pid=Pid}) ->
+    {next_state, StateName, State#state{handoff_pid=undefined}};
 
 handle_info({'EXIT', Pid, Reason}, StateName, State=#state{mod=Mod,modstate=ModState}) ->
     %% A linked processes has died so use the
@@ -407,15 +431,15 @@ handle_info(Info, StateName, State=#state{mod=Mod,modstate=ModState}) ->
 
 terminate(Reason, _StateName, #state{mod=Mod, modstate=ModState,
         pool_pid=Pool,index=Index}) ->
-    riak_core_vnode_master:unregister_vnode(Index,
-        riak_core_vnode_master:reg_name(Mod)),
     case is_pid(Pool) of
         true ->
+            lager:info("~p ~p Shutting down async pool in terminate ~p\n", [Index, Mod, Pool]),
             riak_core_vnode_worker_pool:shutdown_pool(Pool, 60000);
         _ ->
             ok
     end,
-    Mod:terminate(Reason, ModState).
+    Mod:terminate(Reason, ModState),
+    lager:info("~p ~p Terminated\n", [Index, Mod]).
 
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
@@ -488,8 +512,25 @@ start_handoff(State=#state{index=Idx, mod=Mod, modstate=ModState}, TargetNode) -
                     continue(NewState#state{handoff_pid=HandoffPid})
             end
     end.
-            
 
+            
+%% Let the vnode master know we want to shutdown gracefully and
+%% enter the shutdown state.
+start_shutdown(State=#state{index=Index, mod=Mod, pool_pid=Pool}) ->
+    case is_pid(Pool) of
+        true ->
+            %% start async shutdown of worker pool.  Will be notified with 'EXIT' message
+            %% when the pool completes shutdown.
+            lager:info("~p ~p Shutting down async pool in start_shutdown ~p\n", [Index, Mod, Pool]),
+            riak_core_vnode_worker_pool:shutdown_pool(Pool, 60000);
+        _ ->
+            ok
+    end,
+    riak_core_vnode_master:unregister_vnode(Index,
+                                            riak_core_vnode_master:reg_name(Mod)),
+    {next_state, shutdown, State, ?SHUTDOWN_TIMEOUT}.
+
+            
 %% @doc Send a reply to a vnode request.  If 
 %%      the Ref is undefined just send the reply
 %%      for compatibility with pre-0.12 requestors.

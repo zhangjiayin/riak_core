@@ -193,6 +193,8 @@ handle_cast(Req=?COVERAGE_REQ{index=Idx}, State) ->
     gen_fsm:send_event(Pid, Req),
     {noreply, State};
 handle_cast({unregister, Index}, #state{idxtab=T} = State) ->
+    Pid = get_vnode(Index, State),
+    riak_core_vnode:stop(Pid),
     ets:match_delete(T, {idxrec, Index, '_', '_'}),
     {noreply, State};
 handle_cast(Other, State=#state{legacy=Legacy}) when Legacy =/= undefined ->
