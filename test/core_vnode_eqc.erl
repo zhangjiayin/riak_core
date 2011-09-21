@@ -66,6 +66,8 @@ prop_simple() ->
                           %% Check results
                           ?WHENFAIL(
                              begin
+                                 io:format(user, "Cmds: ~p~n",
+                                           [zip(state_names(H), command_names(Cmds))]),
                                  io:format(user, "History: ~p\n", [H]),
                                  io:format(user, "State: ~p\n", [S]),
                                  io:format(user, "Result: ~p\n", [Res])
@@ -223,7 +225,17 @@ postcondition(_From,_To,_S,
 postcondition(_From,_To,_S,
               {call,riak_core_vnode_master,all_nodes,[mock_vnode]},Result) ->
     Pids = [Pid || {_,Pid,_,_} <- supervisor:which_children(riak_core_vnode_sup)],
-    lists:sort(Result) =:= lists:sort(Pids);
+    SPids =  ordsets:from_list(Pids),
+    SResult = ordsets:from_list(Result),
+    %% Check if there are any pids returned by master that are not in the
+    %% sup.  There may be vnodes shutting down still in the sup, but master will
+    %% not reference them.
+    case ordsets:subtract(SResult, SPids) of
+        [] ->
+            true;
+        MasterNotSup ->
+            {pids_in_master_not_sup, MasterNotSup, all_nodes, Result, sup, Pids}
+    end;
 postcondition(_From,_To,_S,_C,_R) ->
     true.
 
