@@ -91,11 +91,12 @@ shutdown({work, _Work, From}, State) ->
 shutdown(_Event, State) ->
     {next_state, shutdown, State}.
 
-handle_event({checkin, Pid}, shutdown, #state{monitors=Monitors0} = State) ->
+handle_event({checkin, Pid}, shutdown, #state{monitors=Monitors0, shutdown=From} = State) ->
     Monitors = lists:keydelete(Pid, 1, Monitors0),
     case Monitors of
         [] -> %% work all done, time to exit!
-            {stop, shutdown, State};
+            gen_fsm:reply(From, ok),
+            {stop, normal, State};
         _ ->
             {next_state, shutdown, State#state{monitors=Monitors}}
     end;
@@ -126,7 +127,7 @@ handle_sync_event({shutdown, Time}, From, _StateName, #state{queue=Q,
     discard_queued_work(Q),
     case Monitors of
         [] ->
-            {stop, shutdown, ok, State};
+            {stop, normal, ok, State};
         _ ->
             case Time of
                 infinity ->
@@ -152,11 +153,12 @@ handle_info({'DOWN', _Ref, _, Pid, Info}, StateName, #state{monitors=Monitors} =
         false ->
             {next_state, StateName, State}
     end;
-handle_info(shutdown, shutdown, #state{monitors=Monitors} = State) ->
+handle_info(shutdown, shutdown, #state{monitors=Monitors, shutdown=From} = State) ->
     %% we've waited too long to shutdown, time to force the issue.
-    [riak_core_vnode:reply(From, {error, vnode_shutdown}) || {_, _, From, _}
+    [riak_core_vnode:reply(Sender, {error, vnode_shutdown}) || {_, _, Sender, _}
         <- Monitors],
-    {stop, shutdown, State};
+    gen_fsm:reply(From, ok),
+    {stop, normal, State};
 handle_info(_Info, StateName, State) ->
     {next_state, StateName, State}.
 
