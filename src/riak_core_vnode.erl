@@ -323,15 +323,39 @@ active(_Event, _From, State) ->
     Reply = ok,
     {reply, Reply, active, State, State#state.inactivity_timeout}.
 
-shutdown(Event, State=#state{index=Idx, mod=Mod}) 
+shutdown(Event, State) 
   when Event == timeout; Event == stop ->
     {stop, normal, State};
-shutdown(?VNODE_REQ{sender = Sender}, State) ->
-    riak_core_vnode:reply(Sender, {error, shutdown}),
-    {next_state, shutdown, State, ?SHUTDOWN_TIMEOUT};
-shutdown(?COVERAGE_REQ{sender = Sender}, State) ->
-    riak_core_vnode:reply(Sender, {error, shutdown}),
-    {next_state, shutdown, State, ?SHUTDOWN_TIMEOUT};
+shutdown(?VNODE_REQ{sender = Sender, request = Request},
+         State=#state{mod = Mod, modstate = ModState}) ->
+    Action = try
+                Mod:handle_shutdown_command(Request, Sender, ModState)
+            catch
+                _:_ ->
+                    {reply, {error, shutdown}, ModState}
+            end,
+    case Action of
+        {reply, Reply, ModState1} ->
+            riak_core_vnode:reply(Sender, Reply),
+            {next_state, shutdown, State#state{modstate = ModState1}, ?SHUTDOWN_TIMEOUT};
+        {noreply, ModState1} ->
+            {next_state, shutdown, State#state{modstate = ModState1}, ?SHUTDOWN_TIMEOUT}
+    end;
+shutdown(?COVERAGE_REQ{sender = Sender, request = Request},
+         State=#state{mod = Mod, modstate = ModState}) ->
+    Action = try
+                Mod:handle_shutdown_coverage(Request, Sender, ModState)
+            catch
+                _:_ ->
+                    {error, shutdown}
+            end,
+    case Action of
+        {reply, Reply, ModState1} ->
+            riak_core_vnode:reply(Sender, Reply),
+            {next_state, shutdown, State#state{modstate = ModState1}, ?SHUTDOWN_TIMEOUT};
+        {noreply, ModState1} ->
+            {next_state, shutdown, State#state{modstate = ModState1}, ?SHUTDOWN_TIMEOUT}
+    end;
 shutdown(_, State) ->
     {next_state, shutdown, State, ?SHUTDOWN_TIMEOUT}.
 
