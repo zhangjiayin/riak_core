@@ -50,6 +50,7 @@
 
 -record(state, {
         mode,
+        ring,
         raw_ring
     }).
 
@@ -73,10 +74,7 @@ start_link(test) ->
 
 %% @spec get_my_ring() -> {ok, riak_core_ring:riak_core_ring()} | {error, Reason}
 get_my_ring() ->
-    case mochiglobal:get(?RING_KEY) of
-        Ring when is_tuple(Ring) -> {ok, Ring};
-        undefined -> {error, no_ring}
-    end.
+    gen_server2:call(?MODULE, get_my_ring, infinity).
 
 get_raw_ring() ->
     gen_server2:call(?MODULE, get_raw_ring, infinity).
@@ -218,21 +216,23 @@ init([Mode]) ->
     %% Do *not* save the ring to disk here.  On startup we deliberately come
     %% up with a ring where the local node owns all partitions so that any
     %% fallback vnodes will be started so they can hand off.
-    set_ring_global(Ring),
+    State = set_ring_global(Ring, #state{mode = Mode, raw_ring=Ring}),
     riak_core_ring_events:ring_update(Ring),
-    {ok, #state{mode = Mode, raw_ring=Ring}}.
+    {ok, State}.
 
 
+handle_call(get_my_ring, _From, #state{ring=Ring} = State) ->
+    {reply, {ok, Ring}, State};
 handle_call(get_raw_ring, _From, #state{raw_ring=Ring} = State) ->
     {reply, {ok, Ring}, State};
 handle_call({set_my_ring, RingIn}, _From, State) ->
     Ring = riak_core_ring:upgrade(RingIn),
-    prune_write_notify_ring(Ring),
-    {reply,ok,State#state{raw_ring=Ring}};
+    State2 = prune_write_notify_ring(Ring, State),
+    {reply,ok,State2#state{raw_ring=Ring}};
 handle_call(refresh_my_ring, _From, State) ->
     %% This node is leaving the cluster so create a fresh ring file
     FreshRing = riak_core_ring:fresh(),
-    set_ring_global(FreshRing),
+    State2 = set_ring_global(FreshRing, State),
     %% Make sure the fresh ring gets written before stopping
     do_write_ringfile(FreshRing),
 
@@ -240,17 +240,17 @@ handle_call(refresh_my_ring, _From, State) ->
     %% so we can safely stop now.
     riak_core:stop("node removal completed, exiting."),
 
-    {reply,ok,State#state{raw_ring=FreshRing}};
+    {reply,ok,State2#state{raw_ring=FreshRing}};
 handle_call({ring_trans, Fun, Args}, _From, State=#state{raw_ring=Ring}) ->
     case catch Fun(Ring, Args) of
         {new_ring, NewRing} ->
-            prune_write_notify_ring(NewRing),
+            State2 = prune_write_notify_ring(NewRing, State),
             riak_core_gossip:random_recursive_gossip(NewRing),
-            {reply, {ok, NewRing}, State#state{raw_ring=NewRing}};
+            {reply, {ok, NewRing}, State2#state{raw_ring=NewRing}};
         {reconciled_ring, NewRing} ->
-            prune_write_notify_ring(NewRing),
+            State2 = prune_write_notify_ring(NewRing, State),
             riak_core_gossip:recursive_gossip(NewRing),
-            {reply, {ok, NewRing}, State#state{raw_ring=NewRing}};
+            {reply, {ok, NewRing}, State2#state{raw_ring=NewRing}};
         ignore ->
             {reply, not_changed, State};
         Other ->
@@ -260,14 +260,13 @@ handle_call({ring_trans, Fun, Args}, _From, State=#state{raw_ring=Ring}) ->
     end;
 handle_call({set_cluster_name, Name}, _From, State=#state{raw_ring=Ring}) ->
     NewRing = riak_core_ring:set_cluster_name(Ring, Name),
-    prune_write_notify_ring(NewRing),
-    {reply, ok, State#state{raw_ring=NewRing}}.
+    State2 = prune_write_notify_ring(NewRing, State),
+    {reply, ok, State2#state{raw_ring=NewRing}}.
 
 handle_cast(stop, State) ->
     {stop,normal,State};
 
-handle_cast({refresh_my_ring, ClusterName}, State) ->
-    {ok, Ring} = get_my_ring(),
+handle_cast({refresh_my_ring, ClusterName}, State=#state{ring=Ring}) ->
     case riak_core_ring:cluster_name(Ring) of
         ClusterName ->
             handle_cast(refresh_my_ring, State);
@@ -339,7 +338,11 @@ run_fixups([{App, Fixup}|T], BucketName, BucketProps) ->
 %% Set the ring in mochiglobal.  Exported during unit testing
 %% to make test setup simpler - no need to spin up a riak_core_ring_manager
 %% process.
-set_ring_global(Ring) ->
+%% TODO: No longer using mochiglobal, fix unit tests to start manager.
+set_ring_global(_Ring) ->
+    throw(todo_fix_test).
+
+set_ring_global(Ring, State) ->
     DefaultProps = case application:get_env(riak_core, default_bucket_props) of
         {ok, Val} ->
             Val;
@@ -372,16 +375,16 @@ set_ring_global(Ring) ->
     %% Mark ring as tainted to check if it is ever leaked over gossip or
     %% relied upon for any non-local ring operations.
     TaintedRing = riak_core_ring:set_tainted(FixedRing),
-    %% store the modified ring in mochiglobal
-    mochiglobal:put(?RING_KEY, TaintedRing).
+    State#state{ring=TaintedRing}.
 
 %% Persist a new ring file, set the global value and notify any listeners
-prune_write_notify_ring(Ring) ->
+prune_write_notify_ring(Ring, State) ->
     riak_core_ring:check_tainted(Ring, "Error: Persisting tainted ring"),
     riak_core_ring_manager:prune_ringfiles(),
     do_write_ringfile(Ring),
-    set_ring_global(Ring),
-    riak_core_ring_events:ring_update(Ring).
+    NewState = set_ring_global(Ring, State),
+    riak_core_ring_events:ring_update(Ring),
+    NewState.
 
 %% ===================================================================
 %% Unit tests
@@ -407,12 +410,14 @@ prune_list_test() ->
     ?assertEqual(PrunedList1, prune_list(TSList1)),
     ?assertEqual(PrunedList2, prune_list(TSList2)).    
 
+%% TODO: Fix/remove test.
 set_ring_global_test() ->
     application:set_env(riak_core,ring_creation_size, 4),
     Ring = riak_core_ring:fresh(),
     set_ring_global(Ring),
     ?assert(riak_core_ring:nearly_equal(Ring, mochiglobal:get(?RING_KEY))).
 
+%% TODO: Fix test to start riak_core_ring_manager to use new get_my_ring
 set_my_ring_test() ->
     application:set_env(riak_core,ring_creation_size, 4),
     Ring = riak_core_ring:fresh(),
