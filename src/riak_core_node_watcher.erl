@@ -174,9 +174,11 @@ handle_cast({down, Node}, State) ->
 
 handle_info({nodeup, _Node}, State) ->
     %% Ignore node up events; nothing to do here...
+    riak_core_pl_cache:invalidate(),
     {noreply, State};
 
 handle_info({nodedown, Node}, State) ->
+    riak_core_pl_cache:invalidate(),
     node_down(Node, State),
     {noreply, update_avsn(State)};
 

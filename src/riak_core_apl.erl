@@ -24,7 +24,8 @@
 %% -------------------------------------------------------------------
 -module(riak_core_apl).
 -export([active_owners/1, active_owners/2,
-         get_apl/3, get_apl/4, get_apl_ann/4,
+         get_apl/3, get_apl/4,
+         get_apl_ann/3, get_apl_ann/4,
          get_primary_apl/3, get_primary_apl/4
         ]).
 
@@ -57,8 +58,7 @@ active_owners(Ring, UpNodes) ->
 %% Get the active preflist taking account of which nodes are up
 -spec get_apl(binary(), n_val(), atom()) -> preflist().
 get_apl(DocIdx, N, Service) ->
-    {ok, Ring} = riak_core_ring_manager:get_my_ring(),
-    get_apl(DocIdx, N, Ring, riak_core_node_watcher:nodes(Service)).
+    riak_core_pl_cache:preflist(p_and_f, DocIdx, N, Service).
 
 %% Get the active preflist taking account of which nodes are up
 %% for a given ring/upnodes list
@@ -66,6 +66,9 @@ get_apl(DocIdx, N, Service) ->
 get_apl(DocIdx, N, Ring, UpNodes) ->
     [{Partition, Node} || {{Partition, Node}, _Type} <- 
                               get_apl_ann(DocIdx, N, Ring, UpNodes)].
+
+get_apl_ann(DocIdx, N, Service) ->
+    riak_core_pl_cache:preflist(ann, DocIdx, N, Service).
 
 %% Get the active preflist taking account of which nodes are up
 %% for a given ring/upnodes list and annotate each node with type of
@@ -82,8 +85,7 @@ get_apl_ann(DocIdx, N, Ring, UpNodes) ->
 %% Same as get_apl, but returns only the primaries.
 -spec get_primary_apl(binary(), n_val(), atom()) -> preflist2().
 get_primary_apl(DocIdx, N, Service) ->
-    {ok, Ring} = riak_core_ring_manager:get_my_ring(),
-    get_primary_apl(DocIdx, N, Ring, riak_core_node_watcher:nodes(Service)).
+    riak_core_pl_cache:preflist(primary, DocIdx, N, Service).
 
 %% Same as get_apl, but returns only the primaries.
 -spec get_primary_apl(binary(), n_val(), ring(), [node()]) -> preflist2().

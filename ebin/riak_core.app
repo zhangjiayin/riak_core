@@ -37,6 +37,7 @@
              riak_core_node_watcher,
              riak_core_node_watcher_events,
              riak_core_pb,
+             riak_core_pl_cache,
              riak_core_ring,
              riak_core_ring_events,
              riak_core_ring_handler,

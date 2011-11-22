@@ -38,6 +38,8 @@
 
 -export([contains_name/2,
          fresh/2,
+         index_to_int/1,
+         int_to_index/1,
          lookup/2,
          key_of/1,
          members/1,
@@ -91,6 +93,14 @@ fresh(NumPartitions, SeedNode) ->
     Inc = ring_increment(NumPartitions),
     {NumPartitions, [{IndexAsInt, SeedNode} ||
            IndexAsInt <- lists:seq(0,(?RINGTOP-1),Inc)]}.
+
+%% @doc Convert to integer index.
+-spec index_to_int(binary()) -> index_as_int().
+index_to_int(<<Int:160/integer>>) -> Int.
+
+%% @doc Convert to binary index.
+-spec int_to_index(index_as_int()) -> binary().
+int_to_index(Int) -> <<Int:160/integer>>.
 
 %% @doc Find the Node that owns the partition identified by IndexAsInt.
 -spec lookup(IndexAsInt :: index_as_int(), CHash :: chash()) -> chash_node().
