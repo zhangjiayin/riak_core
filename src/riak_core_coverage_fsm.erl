@@ -239,7 +239,11 @@ waiting_results({{ReqId, VNode}, Results},
             end;
         Error ->
             Mod:finish(Error, ModState),
-            {stop, Error, StateData}
+            Reason = case Error of
+                         {error, timeout} -> normal; % Avoid SASL complaint logs
+                         _                -> Error
+                     end,
+            {stop, Reason, StateData}
     end;
 waiting_results(timeout, #state{mod=Mod, mod_state=ModState}) ->
     Mod:finish({error, timeout}, ModState).
