@@ -124,6 +124,7 @@ handle_call({service_up, Id, Pid}, _From, State) ->
     erlang:put(Id, Mref),
 
     %% Update our local ETS table and broadcast
+    lager:info("Marking service ~p up on pid ~p.\n", [Id, Pid]),
     S3 = local_update(S2),
     {reply, ok, update_avsn(S3)};
 
@@ -136,6 +137,7 @@ handle_call({service_down, Id}, _From, State) ->
     delete_service_mref(Id),
 
     %% Update local ETS table and broadcast
+    lager:info("Marking service ~p down by request.\n", [Id]),
     S3 = local_update(S2),
     {reply, ok, update_avsn(S3)};
 
@@ -195,6 +197,8 @@ handle_info({'DOWN', Mref, _, _Pid, _Info}, State) ->
             %% Update our list of active services and ETS table
             Services = ordsets:del_element(Id, State#state.services),
             S2 = State#state { services = Services },
+
+            lager:info("Marking service ~p down by exit ~p - ~p.\n", [Id, _Pid, _Info]),
             local_update(S2),
             {noreply, update_avsn(S2)}
     end;

@@ -114,10 +114,12 @@ send_command_after(Time, Request) ->
 init([Mod, Index, InitialInactivityTimeout]) ->
     %%TODO: Should init args really be an array if it just gets Init?
     process_flag(trap_exit, true),
+    lager:info("~p ~p initializing.", [Mod, Index]),
     {ModState, Props} = case Mod:init([Index]) of
         {ok, MS} -> {MS, []};
         {ok, MS, P} -> {MS, P}
     end,
+    lager:info("~p ~p initialized", [Mod, Index]),
     PoolPid = case lists:keyfind(pool, 1, Props) of
         {pool, WorkerModule, PoolSize, WorkerArgs} ->
             lager:debug("starting worker pool ~p with size of ~p~n",
@@ -133,6 +135,7 @@ init([Mod, Index, InitialInactivityTimeout]) ->
     State = #state{index=Index, mod=Mod, modstate=ModState,
                    inactivity_timeout=Timeout, pool_pid=PoolPid},
     State2 = update_forwarding_mode(Ring, State),
+    lager:info("~p ~p active", [Mod, Index]),
     {ok, active, State2, InitialInactivityTimeout}.
 
 get_mod_index(VNode) ->
