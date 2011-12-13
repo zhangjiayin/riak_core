@@ -79,9 +79,12 @@ send_command_after(Time, Request) ->
 init([Mod, Index]) ->
     %%TODO: Should init args really be an array if it just gets Init?
     process_flag(trap_exit, true),
+    error_logger:info_msg("~p ~p initializing.", [Mod, Index]),
     {ok, ModState} = Mod:init([Index]),
+    error_logger:info_msg("~p ~p initialized", [Mod, Index]),
     riak_core_handoff_manager:remove_exclusion(Mod, Index),
     Timeout = app_helper:get_env(riak_core, vnode_inactivity_timeout, ?DEFAULT_TIMEOUT),
+    error_logger:info_msg("~p ~p active", [Mod, Index]),
     {ok, active, #state{index=Index, mod=Mod, modstate=ModState,
                         inactivity_timeout=Timeout}, 0}.
 
