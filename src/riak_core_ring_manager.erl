@@ -227,6 +227,7 @@ handle_call(get_raw_ring, _From, #state{raw_ring=Ring} = State) ->
     {reply, {ok, Ring}, State};
 handle_call({set_my_ring, RingIn}, _From, State) ->
     Ring = riak_core_ring:upgrade(RingIn),
+    lager:info("Ring manager setting ring"),
     prune_write_notify_ring(Ring),
     {reply,ok,State#state{raw_ring=Ring}};
 handle_call(refresh_my_ring, _From, State) ->

@@ -277,12 +277,14 @@ register(Props) ->
     register(undefined, Props).
 
 %% @doc Register a named riak_core application.
-register(_App, []) ->
+register(App, []) ->
     %% Once the app is registered, do a no-op ring trans
     %% to ensure the new fixups are run against
     %% the ring.
+    lager:info("Running ring trans to ensure nodes started"),
     {ok, _R} = riak_core_ring_manager:ring_trans(fun(R,_A) -> {new_ring, R} end,
                                                  undefined),
+    lager:info("Ran ring trans to ensure nodes started"),
     ok;
 register(App, [{bucket_fixup, FixupMod}|T]) ->
     register_mod(get_app(App, FixupMod), FixupMod, bucket_fixups),
@@ -292,7 +294,9 @@ register(App, [{vnode_module, VNodeMod}|T]) ->
     register(App, T).
 
 register_vnode_module(VNodeMod) when is_atom(VNodeMod)  ->
-    register_mod(get_app(undefined, VNodeMod), VNodeMod, vnode_modules).
+    register_mod(get_app(undefined, VNodeMod), VNodeMod, vnode_modules),
+    %% Make sure ring trans is called to start vnodes
+    register(undefined, []).
 
 register_mod(App, Module, Type) when is_atom(Module), is_atom(Type) ->
     case application:get_env(riak_core, Type) of
