@@ -22,6 +22,7 @@
              riak_core_cinfo_core,
              riak_core_claim,
              riak_core_new_claim,
+             riak_core_claim_util,
              riak_core_config,
              riak_core_console,
              riak_core_coverage_fsm,

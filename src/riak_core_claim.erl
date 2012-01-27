@@ -124,6 +124,22 @@ wants_claim_v1(Ring0, Node) ->
             no
     end.
 
+calc_expected_claim(Ring, Active, Node) ->
+    RingSize = riak_core_ring:num_partitions(Ring),
+    Weights0 =
+        [case riak_core_ring:get_member_meta(Ring, Member, claim_weight) of
+             undefined ->
+                 {Member, 1};
+             Weight ->
+                 {Member, Weight}
+         end || Member <- Active],
+    Weights = orddict:from_list(Weights0),
+    Total = lists:foldl(fun({_, Weight}, Total) ->
+                                Total + Weight
+                        end, 0, Weights),
+    NodeWeight = orddict:fetch(Node, Weights),
+    RingSize * NodeWeight div Total.
+
 wants_claim_v2(Ring) ->
     wants_claim_v2(Ring, node()).
 
@@ -131,15 +147,13 @@ wants_claim_v2(Ring, Node) ->
     Active = riak_core_ring:claiming_members(Ring),
     Owners = riak_core_ring:all_owners(Ring),
     Counts = get_counts(Active, Owners),
-    NodeCount = erlang:length(Active),
-    RingSize = riak_core_ring:num_partitions(Ring),
-    Avg = RingSize div NodeCount,
+    Expected = calc_expected_claim(Ring, Active, Node),
     Count = proplists:get_value(Node, Counts, 0),
-    case Count < Avg of
+    case Count < Expected of
         false ->
             no;
         true ->
-            {yes, Avg - Count}
+            {yes, Expected - Count}
     end.
 
 %% @deprecated
@@ -171,8 +185,10 @@ choose_claim_v2(Ring, Node) ->
     Counts = get_counts(Active, Owners),
     RingSize = riak_core_ring:num_partitions(Ring),
     NodeCount = erlang:length(Active),
-    Avg = RingSize div NodeCount,
-    Deltas = [{Member, Avg - Count} || {Member, Count} <- Counts],
+    Deltas = [begin
+                  Expected = calc_expected_claim(Ring, Active, Member),
+                  {Member, Expected - Count}
+              end || {Member, Count} <- Counts],
     {_, Want} = lists:keyfind(Node, 1, Deltas),
     TargetN = app_helper:get_env(riak_core, target_n_val),
     AllIndices = lists:zip(lists:seq(0, length(Owners)-1),

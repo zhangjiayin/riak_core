@@ -464,15 +464,27 @@ log_membership_changes(OldRing, NewRing) ->
     ok.
     
 claim_until_balanced(Ring, Node) ->
+    claim_until_balanced(Ring, Node, 5).
+
+claim_until_balanced(Ring, Node, Retries) ->
     {WMod, WFun} = app_helper:get_env(riak_core, wants_claim_fun),
     NeedsIndexes = apply(WMod, WFun, [Ring, Node]),
     case NeedsIndexes of
         no ->
             Ring;
-        {yes, _NumToClaim} ->
-            {CMod, CFun} = app_helper:get_env(riak_core, choose_claim_fun),
-            NewRing = CMod:CFun(Ring, Node),
-            claim_until_balanced(NewRing, Node)
+        {yes, NumToClaim} ->
+            case Retries of
+                0 ->
+                    lager:warning("~p wanted to claim ~b more partitions, but "
+                                  "was unable to does so safely",
+                                  [Node, NumToClaim]),
+                    Ring;
+                _ ->
+                    {CMod, CFun} =
+                        app_helper:get_env(riak_core, choose_claim_fun),
+                    NewRing = CMod:CFun(Ring, Node),
+                    claim_until_balanced(NewRing, Node, Retries-1)
+            end
     end.
 
 remove_from_cluster(Ring, ExitingNode) ->
