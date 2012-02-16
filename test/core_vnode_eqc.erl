@@ -320,9 +320,9 @@ start_servers() ->
 stop_servers() ->
     %% Make sure VMaster is killed before sup as start_vnode is a cast
     %% and there may be a pending request to start the vnode.
-    stop_pid(whereis(mock_vnode_master)),
-    stop_pid(whereis(riak_core_vnode_manager)),
-    stop_pid(whereis(riak_core_vnode_sup)).
+    stop_pid(mock_vnode_master),
+    stop_pid(riak_core_vnode_manager),
+    stop_pid(riak_core_vnode_sup).
 
 restart_master() ->
     %% Call get status to make sure the riak_core_vnode_master
@@ -330,24 +330,29 @@ restart_master() ->
     %% commands like neverreply are not cast on to the vnode and the
     %% counters are not updated correctly.
     sys:get_status(mock_vnode_master),
-    stop_pid(whereis(mock_vnode_master)),
+    stop_pid(mock_vnode_master),
     {ok, _VMaster} = riak_core_vnode_master:start_link(mock_vnode).
 
-stop_pid(undefined) ->
+stop_pid(Name) when is_atom(Name) ->
+    stop_pid(whereis(Name), Name);
+stop_pid(Pid) when is_pid(Pid) ->
+    stop_pid(Pid, Pid).
+
+stop_pid(undefined, _) ->
     ok;
-stop_pid(Pid) ->
+stop_pid(Pid, Name) ->
     unlink(Pid),
     exit(Pid, shutdown),
-    ok = wait_for_pid(Pid).
+    ok = wait_for_pid(Pid, Name).
 
-wait_for_pid(Pid) ->
+wait_for_pid(Pid, Name) ->
     Mref = erlang:monitor(process, Pid),
     receive
         {'DOWN',Mref,process,_,_} ->
             ok
     after
         15000 ->
-            {error, didnotexit}
+            {error, {didnotexit, Name}}
     end.
 
 %% Async work collector process - collect all messages until work requested
