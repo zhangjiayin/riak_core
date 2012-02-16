@@ -352,7 +352,9 @@ wait_for_pid(Pid, Name) ->
             ok
     after
         35000 ->
-            {error, {didnotexit, Name}}
+            exit(Pid, kill),
+            wait_for_pid(Pid, Name)
+            %{error, {didnotexit, Name}}
     end.
 
 %% Async work collector process - collect all messages until work requested
