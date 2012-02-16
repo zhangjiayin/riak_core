@@ -312,7 +312,7 @@ check_receive(Replies, Msg, Ref) ->
 %% Server start/stop infrastructure
 
 start_servers() ->
-    %stop_servers(),
+    stop_servers(),
     {ok, _Sup} = riak_core_vnode_sup:start_link(),
     {ok, _} = riak_core_vnode_manager:start_link(),
     {ok, _VMaster} = riak_core_vnode_master:start_link(mock_vnode).
