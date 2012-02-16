@@ -351,7 +351,7 @@ wait_for_pid(Pid, Name) ->
         {'DOWN',Mref,process,_,_} ->
             ok
     after
-        15000 ->
+        35000 ->
             {error, {didnotexit, Name}}
     end.
 
