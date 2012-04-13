@@ -6,3 +6,4 @@ priv/*
 include/*_pb.hrl
 *~
 doc/*
+ebin
