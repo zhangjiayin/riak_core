@@ -31,7 +31,7 @@
              riak_core_gossip,
              riak_core_handoff_listener,
              riak_core_handoff_listener_sup,
-             riak_core_handoff_manager,
+             riak_core_transfer_manager,
              riak_core_handoff_receiver,
              riak_core_handoff_receiver_sup,
              riak_core_handoff_sender,

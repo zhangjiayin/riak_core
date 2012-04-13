@@ -134,7 +134,7 @@ init([Mod, Index, InitialInactivityTimeout, Forward]) ->
                     Pid;
                 _ -> undefined
             end,
-            riak_core_handoff_manager:remove_exclusion(Mod, Index),
+            riak_core_transfer_manager:remove_exclusion(Mod, Index),
             Timeout = app_helper:get_env(riak_core, vnode_inactivity_timeout, ?DEFAULT_TIMEOUT),
             State = #state{index=Index, mod=Mod, modstate=ModState, forward=Forward,
                 inactivity_timeout=Timeout, pool_pid=PoolPid},
@@ -302,7 +302,7 @@ active({trigger_handoff, TargetNode}, State) ->
 active(unregistered, State=#state{mod=Mod, index=Index}) ->
     %% Add exclusion so the ring handler will not try to spin this vnode
     %% up until it receives traffic.
-    riak_core_handoff_manager:add_exclusion(Mod, Index),
+    riak_core_transfer_manager:add_exclusion(Mod, Index),
     lager:debug("~p ~p vnode excluded and unregistered.",
                 [Index, Mod]),
     {stop, normal, State#state{handoff_node=none,
@@ -590,7 +590,7 @@ start_handoff(State=#state{index=Idx, mod=Mod, modstate=ModState}, TargetNode) -
             finish_handoff(State#state{modstate=NewModState,
                                        handoff_node=TargetNode});
         {false, NewModState} ->
-            case riak_core_handoff_manager:add_outbound(Mod,Idx,TargetNode,self()) of
+            case riak_core_transfer_manager:add_outbound(Mod,Idx,TargetNode,self()) of
                 {ok,_Pid} ->
                     NewState = State#state{modstate=NewModState,
                                            handoff_node=TargetNode},

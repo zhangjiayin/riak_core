@@ -12,8 +12,8 @@
 %% specific language governing permissions and limitations
 %% under the License.
 
-%% Copyright (c) 2007-2010 Basho Technologies, Inc.  All Rights Reserved.
--module(riak_core_handoff_manager).
+%% Copyright (c) 2007-2012 Basho Technologies, Inc.  All Rights Reserved.
+-module(riak_core_transfer_manager).
 -behaviour(gen_server).
 
 %% gen_server api
@@ -73,7 +73,7 @@ start_link() ->
 init([]) ->
     {ok, #state{excl=ordsets:new(), handoffs=[]}}.
 
-%% handoff_manager API
+%% API
 
 add_outbound(Module,Idx,Node,VnodePid) ->
     gen_server:call(?MODULE,{add_outbound,Module,Idx,Node,VnodePid}).
