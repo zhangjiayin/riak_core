@@ -49,7 +49,7 @@ command_return_vnode({Mod,Index,Node}, Req) ->
     call(reg_name(Mod, Index, Node), {return_vnode, Req}).
 
 call(Name, Msg) ->
-    {ok,Res} = (catch gen:call(Name, '$vnode_proxy_call', Msg)),
+    {ok,Res} = (catch gen:call(Name, '$vnode_proxy_call', Msg, infinity)),
     Res.
 
 call(Name, Msg, Timeout) ->
