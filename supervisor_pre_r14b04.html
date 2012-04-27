@@ -1,0 +1,212 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module supervisor_pre_r14b04</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module supervisor_pre_r14b04</h1>
+<ul class="index"><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-call">call()</a></h3>
+<p><tt>call() = which_children | count_children | {term(), term()}</tt></p>
+<p> XXX: refine</p>
+
+<h3 class="typedecl"><a name="type-child">child()</a></h3>
+<p><tt>child() = pid() | undefined</tt></p>
+
+
+<h3 class="typedecl"><a name="type-child_id">child_id()</a></h3>
+<p><tt>child_id() = term()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-child_rec">child_rec()</a></h3>
+<p><tt>child_rec() = #child{pid = <a href="#type-child">child()</a>, name = any(), mfargs = undefined | <a href="#type-mfargs">mfargs()</a>, restart_type = undefined | <a href="#type-restart">restart()</a>, shutdown = undefined | <a href="#type-shutdown">shutdown()</a>, child_type = undefined | <a href="#type-worker">worker()</a>, modules = <a href="#type-modules">modules()</a>}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-child_spec">child_spec()</a></h3>
+<p><tt>child_spec() = {Id::<a href="#type-child_id">child_id()</a>, StartFunc::<a href="#type-mfargs">mfargs()</a>, Restart::<a href="#type-restart">restart()</a>, Shutdown::<a href="#type-shutdown">shutdown()</a>, Type::<a href="#type-worker">worker()</a>, Modules::<a href="#type-modules">modules()</a>}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-init_sup_name">init_sup_name()</a></h3>
+<p><tt>init_sup_name() = <a href="#type-sup_name">sup_name()</a> | self</tt></p>
+
+
+<h3 class="typedecl"><a name="type-mfargs">mfargs()</a></h3>
+<p><tt>mfargs() = {M::module(), F::atom(), A::[term()] | undefined}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-modules">modules()</a></h3>
+<p><tt>modules() = [module()] | dynamic</tt></p>
+
+
+<h3 class="typedecl"><a name="type-restart">restart()</a></h3>
+<p><tt>restart() = permanent | transient | temporary</tt></p>
+
+
+<h3 class="typedecl"><a name="type-shutdown">shutdown()</a></h3>
+<p><tt>shutdown() = brutal_kill | timeout()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-startchild_err">startchild_err()</a></h3>
+<p><tt>startchild_err() = already_present | {already_started, Child::<a href="#type-child">child()</a>} | term()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-startchild_ret">startchild_ret()</a></h3>
+<p><tt>startchild_ret() = {ok, Child::<a href="#type-child">child()</a>} | {ok, Child::<a href="#type-child">child()</a>, Info::term()} | {error, <a href="#type-startchild_err">startchild_err()</a>}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-startlink_err">startlink_err()</a></h3>
+<p><tt>startlink_err() = {already_started, pid()} | shutdown | term()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-startlink_ret">startlink_ret()</a></h3>
+<p><tt>startlink_ret() = {ok, pid()} | ignore | {error, <a href="#type-startlink_err">startlink_err()</a>}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-state">state()</a></h3>
+<p><tt>state() = #state{name = any(), strategy = undefined | <a href="#type-strategy">strategy()</a>, children = [<a href="#type-child_rec">child_rec()</a>], dynamics = undefined | dict() | set(), intensity = undefined | non_neg_integer(), period = undefined | pos_integer(), restarts = any(), module = any(), args = any()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-stop_rsn">stop_rsn()</a></h3>
+<p><tt>stop_rsn() = shutdown | {bad_return, {module(), init, term()}} | {bad_start_spec, term()} | {start_spec, term()} | {supervisor_data, term()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-strategy">strategy()</a></h3>
+<p><tt>strategy() = one_for_all | one_for_one | rest_for_one | simple_one_for_one</tt></p>
+
+
+<h3 class="typedecl"><a name="type-sup_name">sup_name()</a></h3>
+<p><tt>sup_name() = {local, Name::atom()} | {global, Name::atom()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-sup_ref">sup_ref()</a></h3>
+<p><tt>sup_ref() = (Name::atom()) | {Name::atom(), Node::node()} | {global, Name::atom()} | pid()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-worker">worker()</a></h3>
+<p><tt>worker() = worker | supervisor</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#behaviour_info-1">behaviour_info/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#check_childspecs-1">check_childspecs/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#count_children-1">count_children/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#delete_child-2">delete_child/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#restart_child-2">restart_child/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_child-2">start_child/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#terminate_child-2">terminate_child/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#which_children-1">which_children/1</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="behaviour_info-1">behaviour_info/1</a></h3>
+<div class="spec">
+<p><tt>behaviour_info(Other::atom()) -&gt; undefined | [{atom(), arity()}]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="check_childspecs-1">check_childspecs/1</a></h3>
+<div class="spec">
+<p><tt>check_childspecs(ChildSpecs) -&gt; Result</tt>
+<ul class="definitions"><li><tt>ChildSpecs = [<a href="#type-child_spec">child_spec()</a>]</tt></li><li><tt>Result = ok | {error, Error::term()}</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="code_change-3">code_change/3</a></h3>
+<div class="spec">
+<p><tt>code_change(X1::term(), State::<a href="#type-state">state()</a>, X3::term()) -&gt; {ok, <a href="#type-state">state()</a>} | {error, term()}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="count_children-1">count_children/1</a></h3>
+<div class="spec">
+<p><tt>count_children(SupRef) -&gt; PropListOfCounts</tt>
+<ul class="definitions"><li><tt>SupRef = <a href="#type-sup_ref">sup_ref()</a></tt></li><li><tt>PropListOfCounts = [Count]</tt></li><li><tt>Count = {specs, ChildSpecCount::non_neg_integer()} | {active, ActiveProcessCount::non_neg_integer()} | {supervisors, ChildSupervisorCount::non_neg_integer()} | {workers, ChildWorkerCount::non_neg_integer()}</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="delete_child-2">delete_child/2</a></h3>
+<div class="spec">
+<p><tt>delete_child(SupRef, Id) -&gt; Result</tt>
+<ul class="definitions"><li><tt>SupRef = <a href="#type-sup_ref">sup_ref()</a></tt></li><li><tt>Id = <a href="#type-child_id">child_id()</a></tt></li><li><tt>Result = ok | {error, Error}</tt></li><li><tt>Error = running | not_found | simple_one_for_one</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="handle_call-3">handle_call/3</a></h3>
+<div class="spec">
+<p><tt>handle_call(X1::<a href="#type-call">call()</a>, From::term(), State::<a href="#type-state">state()</a>) -&gt; {reply, term(), <a href="#type-state">state()</a>}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="handle_cast-2">handle_cast/2</a></h3>
+<div class="spec">
+<p><tt>handle_cast(X1::null, State::<a href="#type-state">state()</a>) -&gt; {noreply, <a href="#type-state">state()</a>}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="handle_info-2">handle_info/2</a></h3>
+<div class="spec">
+<p><tt>handle_info(Msg::term(), State::<a href="#type-state">state()</a>) -&gt; {noreply, <a href="#type-state">state()</a>} | {stop, shutdown, <a href="#type-state">state()</a>}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="init-1">init/1</a></h3>
+<div class="spec">
+<p><tt>init(X1::{<a href="#type-init_sup_name">init_sup_name()</a>, module(), [term()]}) -&gt; {ok, <a href="#type-state">state()</a>} | ignore | {stop, <a href="#type-stop_rsn">stop_rsn()</a>}</tt><br></p>
+</div>
+
+<h3 class="function"><a name="restart_child-2">restart_child/2</a></h3>
+<div class="spec">
+<p><tt>restart_child(SupRef, Id) -&gt; Result</tt>
+<ul class="definitions"><li><tt>SupRef = <a href="#type-sup_ref">sup_ref()</a></tt></li><li><tt>Id = <a href="#type-child_id">child_id()</a></tt></li><li><tt>Result = {ok, Child::<a href="#type-child">child()</a>} | {ok, Child::<a href="#type-child">child()</a>, Info::term()} | {error, Error}</tt></li><li><tt>Error = running | not_found | simple_one_for_one | term()</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="start_child-2">start_child/2</a></h3>
+<div class="spec">
+<p><tt>start_child(SupRef, ChildSpec) -&gt; <a href="#type-startchild_ret">startchild_ret()</a></tt>
+<ul class="definitions"><li><tt>SupRef = <a href="#type-sup_ref">sup_ref()</a></tt></li><li><tt>ChildSpec = <a href="#type-child_spec">child_spec()</a> | (List::[term()])</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="start_link-2">start_link/2</a></h3>
+<div class="spec">
+<p><tt>start_link(Module, Args) -&gt; <a href="#type-startlink_ret">startlink_ret()</a></tt>
+<ul class="definitions"><li><tt>Module = module()</tt></li><li><tt>Args = term()</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="start_link-3">start_link/3</a></h3>
+<div class="spec">
+<p><tt>start_link(SupName, Module, Args) -&gt; <a href="#type-startlink_ret">startlink_ret()</a></tt>
+<ul class="definitions"><li><tt>SupName = <a href="#type-sup_name">sup_name()</a></tt></li><li><tt>Module = module()</tt></li><li><tt>Args = term()</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="terminate-2">terminate/2</a></h3>
+<div class="spec">
+<p><tt>terminate(Reason::term(), State::<a href="#type-state">state()</a>) -&gt; ok</tt><br></p>
+</div>
+
+<h3 class="function"><a name="terminate_child-2">terminate_child/2</a></h3>
+<div class="spec">
+<p><tt>terminate_child(SupRef, Id) -&gt; Result</tt>
+<ul class="definitions"><li><tt>SupRef = <a href="#type-sup_ref">sup_ref()</a></tt></li><li><tt>Id = pid() | <a href="#type-child_id">child_id()</a></tt></li><li><tt>Result = ok | {error, Error}</tt></li><li><tt>Error = not_found | simple_one_for_one</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="which_children-1">which_children/1</a></h3>
+<div class="spec">
+<p><tt>which_children(SupRef) -&gt; [{Id, Child, Type, Modules}]</tt>
+<ul class="definitions"><li><tt>SupRef = <a href="#type-sup_ref">sup_ref()</a></tt></li><li><tt>Id = <a href="#type-child_id">child_id()</a> | undefined</tt></li><li><tt>Child = <a href="#type-child">child()</a></tt></li><li><tt>Type = <a href="#type-worker">worker()</a></tt></li><li><tt>Modules = <a href="#type-modules">modules()</a></tt></li></ul></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Apr 27 2012, 16:05:06.</i></p>
+</body>
+</html>

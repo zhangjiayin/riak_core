@@ -1,0 +1,93 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module spiraltime</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module spiraltime</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>A set of sliding windows for recording N-per-second running stats.
+
+
+<h2><a name="description">Description</a></h2><p>A set of sliding windows for recording N-per-second running stats.</p>
+ 
+  <p>This keeps stats per second for the last minute.</p>
+ 
+  See git commit history for versions of this module which keep stats
+  for more than 1 minute.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-count">count()</a></h3>
+<p><tt>count() = integer()</tt></p>
+<p>The number of entries recorded in some time period.</p>
+
+<h3 class="typedecl"><a name="type-moment">moment()</a></h3>
+<p><tt>moment() = integer()</tt></p>
+<p>This is a number of seconds, as produced by
+  calendar:datetime_to_gregorian_seconds(calendar:local_time())</p>
+
+<h3 class="typedecl"><a name="type-spiral">spiral()</a></h3>
+<p><tt>spiral() = #spiral{moment = undefined | integer(), seconds = undefined | [integer()]}</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#fresh-0">fresh/0</a></td><td>Create an empty spiral with which to begin recording entries.</td></tr>
+<tr><td valign="top"><a href="#fresh-1">fresh/1</a></td><td>Create an empty spiral with which to begin recording entries.</td></tr>
+<tr><td valign="top"><a href="#incr-2">incr/2</a></td><td>Add N to the counter of events, as recently as possible.</td></tr>
+<tr><td valign="top"><a href="#incr-3">incr/3</a></td><td>Add N to the counter of events occurring at Moment.</td></tr>
+<tr><td valign="top"><a href="#n-0">n/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#rep_minute-1">rep_minute/1</a></td><td>Produce the number of entries recorded in the last minute.</td></tr>
+<tr><td valign="top"><a href="#rep_second-1">rep_second/1</a></td><td>Produce the number of entries recorded in the last second.</td></tr>
+<tr><td valign="top"><a href="#test_spiraltime-0">test_spiraltime/0</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="fresh-0">fresh/0</a></h3>
+<div class="spec">
+<p><tt>fresh() -&gt; <a href="#type-spiral">spiral()</a></tt><br></p>
+</div><p>Create an empty spiral with which to begin recording entries.</p>
+
+<h3 class="function"><a name="fresh-1">fresh/1</a></h3>
+<div class="spec">
+<p><tt>fresh(Moment::<a href="#type-moment">moment()</a>) -&gt; <a href="#type-spiral">spiral()</a></tt><br></p>
+</div><p>Create an empty spiral with which to begin recording entries.</p>
+
+<h3 class="function"><a name="incr-2">incr/2</a></h3>
+<div class="spec">
+<p><tt>incr(N::<a href="#type-count">count()</a>, Spiral::<a href="#type-spiral">spiral()</a>) -&gt; <a href="#type-spiral">spiral()</a></tt><br></p>
+</div><p>Add N to the counter of events, as recently as possible.</p>
+
+<h3 class="function"><a name="incr-3">incr/3</a></h3>
+<div class="spec">
+<p><tt>incr(N::<a href="#type-count">count()</a>, Moment::<a href="#type-moment">moment()</a>, Spiral::<a href="#type-spiral">spiral()</a>) -&gt; <a href="#type-spiral">spiral()</a></tt><br></p>
+</div><p>Add N to the counter of events occurring at Moment.</p>
+
+<h3 class="function"><a name="n-0">n/0</a></h3>
+<div class="spec">
+<p><tt>n() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="rep_minute-1">rep_minute/1</a></h3>
+<div class="spec">
+<p><tt>rep_minute(Spiral::<a href="#type-spiral">spiral()</a>) -&gt; {<a href="#type-moment">moment()</a>, <a href="#type-count">count()</a>}</tt><br></p>
+</div><p>Produce the number of entries recorded in the last minute.</p>
+
+<h3 class="function"><a name="rep_second-1">rep_second/1</a></h3>
+<div class="spec">
+<p><tt>rep_second(Spiral::<a href="#type-spiral">spiral()</a>) -&gt; {<a href="#type-moment">moment()</a>, <a href="#type-count">count()</a>}</tt><br></p>
+</div><p>Produce the number of entries recorded in the last second.</p>
+
+<h3 class="function"><a name="test_spiraltime-0">test_spiraltime/0</a></h3>
+<div class="spec">
+<p><tt>test_spiraltime() -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Apr 27 2012, 16:05:06.</i></p>
+</body>
+</html>

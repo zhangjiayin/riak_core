@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module merkerl</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module merkerl</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>An implementation of Merkle Trees for anti-entropy.
+
+<p><b>References</b><ul><li>Ralph C. Merkle, A Digital Signature Based on a Conventional
+  Encryption Function, A Conference on the Theory and Applications of
+  Cryptographic Techniques on Advances in Cryptology, p.369-378, August 16-20,
+  1987</li></ul></p>
+
+<h2><a name="description">Description</a></h2><p>An implementation of Merkle Trees for anti-entropy.</p>
+ 
+  <p>Intended use is for synchronizing two key/value stores with similar but  
+potentially-divergent content.</p>
+ 
+  <p>Typical usage is when a pair (or more) of nodes or systems have views of a  
+set of key/value objects which can change independently.  Whenever a new  
+object is created or an existing one is modified (there is no difference from  
+the merkle point of view) the node seeing the change performs an insert/2 to  
+record the change.  At any time, one node can send a representation of its  
+tree to another node.  The receiving node can diff/2 the trees to see which  
+objects differ on the two systems.  From this information, a system knows  
+exactly which objects to send or request in order to converge toward a common  
+view of the world.  Of course, if the objects contain versioning information  
+it will be much easier to resolve which node's view for any given object is  
+newer.</p>
+ 
+  <p>See the code of merkle_test/0 for trivial example usage.</p>
+ 
+  Application usage note: the 'crypto' OTP application must be started before
+  any of this module's functions will work.
+ 
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-hash">hash()</a></h3>
+<p><tt>hash() = binary()</tt></p>
+<p>This is a hash representing a unique content value for an object
+ tracked by a Merkle tree.
+ It should change if the object it references changes in value.
+ It is expected to be a 160b binary, as produced by
+ crypto:sha/1 -- crypto:sha(term_to_binary(value)) is the canonical
+ way to produce a hash().</p>
+
+<h3 class="typedecl"><a name="type-key">key()</a></h3>
+<p><tt>key() = binary()</tt></p>
+<p>This is the key, or "name" for an object tracked by a Merkle tree.
+ It should remain constant through changes to the object it references.
+ It is expected to be a 160b binary, as produced by
+ crypto:sha/1 -- if the natural names of objects are not such values,
+ then simply crypto:sha(term_to_binary(the-name&gt;).</p>
+
+<h3 class="typedecl"><a name="type-tree">tree()</a></h3>
+<p><tt>tree() = <a href="#type-treeleaf">treeleaf()</a> | <a href="#type-treeinner">treeinner()</a> | undefined</tt></p>
+<p>The tree() type here is used as the internal representation of
+ a Merkle tree.  It can be used locally with insert/2 or pickled
+ via term_to_binary and inverse for use remotely in diff/2.</p>
+
+<h3 class="typedecl"><a name="type-treeinner">treeinner()</a></h3>
+<p><tt>treeinner() = term()</tt></p>
+<p>Not externally useful, this is one of two record types making up tree().</p>
+
+<h3 class="typedecl"><a name="type-treeleaf">treeleaf()</a></h3>
+<p><tt>treeleaf() = term()</tt></p>
+<p>Not externally useful, this is one of two record types making up tree().</p>
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#allkeys-1">allkeys/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#build_tree-1">build_tree/1</a></td><td>Build a Merkle tree from a list of KH's of objects.</td></tr>
+<tr><td valign="top"><a href="#delete-2">delete/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#diff-2">diff/2</a></td><td>Find the keys of objects which differ between the two trees.</td></tr>
+<tr><td valign="top"><a href="#insert-2">insert/2</a></td><td>Insert the KH for a new or changed object into T.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="allkeys-1">allkeys/1</a></h3>
+<div class="spec">
+<p><tt>allkeys(Tree) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="build_tree-1">build_tree/1</a></h3>
+<div class="spec">
+<p><tt>build_tree(KHL) -&gt; any()</tt></p>
+</div><p>Build a Merkle tree from a list of KH's of objects.</p>
+
+<h3 class="function"><a name="delete-2">delete/2</a></h3>
+<div class="spec">
+<p><tt>delete(Key, Tree) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="diff-2">diff/2</a></h3>
+<div class="spec">
+<p><tt>diff(X::<a href="#type-tree">tree()</a>, TreeB::<a href="#type-tree">tree()</a>) -&gt; [<a href="#type-key">key()</a>]</tt><br></p>
+</div><p><p>Find the keys of objects which differ between the two trees.</p>
+
+ <p>For this purpose, "differ" means that an object either exists in 
+only one of the two trees or it exists in both but with different 
+hash() values.</p>
+
+ No information about the differing objects is provided except the keys.
+ (Objects with vector-clock versioning are helpful here)</p>
+
+<h3 class="function"><a name="insert-2">insert/2</a></h3>
+<div class="spec">
+<p><tt>insert(X1, T) -&gt; any()</tt></p>
+</div><p><p>Insert the KH for a new or changed object into T.</p>
+
+ This is used much like a typical tree-insert function.
+ To create a new tree, this can be called with T set to the atom 'undefined'.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Apr 27 2012, 16:05:07.</i></p>
+</body>
+</html>

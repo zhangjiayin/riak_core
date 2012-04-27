@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module riak_core</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module riak_core</h1>
+<ul class="index"><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#add_guarded_event_handler-3">add_guarded_event_handler/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#add_guarded_event_handler-4">add_guarded_event_handler/4</a></td><td>Add a "guarded" event handler to a gen_event instance.</td></tr>
+<tr><td valign="top"><a href="#bucket_fixups-0">bucket_fixups/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#bucket_validators-0">bucket_validators/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#delete_guarded_event_handler-3">delete_guarded_event_handler/3</a></td><td>Delete a guarded event handler from a gen_event instance.</td></tr>
+<tr><td valign="top"><a href="#down-1">down/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#join-1">join/1</a></td><td>Join the ring found on the specified remote node.</td></tr>
+<tr><td valign="top"><a href="#join-4">join/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#leave-0">leave/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#register-1">register/1</a></td><td>Register a riak_core application.</td></tr>
+<tr><td valign="top"><a href="#register-2">register/2</a></td><td>Register a named riak_core application.</td></tr>
+<tr><td valign="top"><a href="#remove-1">remove/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#remove_from_cluster-1">remove_from_cluster/1</a></td><td>Cause all partitions owned by ExitingNode to be taken over
+       by other nodes.</td></tr>
+<tr><td valign="top"><a href="#stop-0">stop/0</a></td><td>Stop the riak application and the calling process.</td></tr>
+<tr><td valign="top"><a href="#stop-1">stop/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#vnode_modules-0">vnode_modules/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wait_for_application-1">wait_for_application/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wait_for_service-1">wait_for_service/1</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="add_guarded_event_handler-3">add_guarded_event_handler/3</a></h3>
+<div class="spec">
+<p><tt>add_guarded_event_handler(HandlerMod, Handler, Args) -&gt; AddResult</tt>
+<ul class="definitions"><li><tt>HandlerMod = module()</tt></li><li><tt>Handler = module() | {module(), term()}</tt></li><li><tt>Args = list()</tt></li><li><tt>AddResult = ok | {error, Reason::term()}</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="add_guarded_event_handler-4">add_guarded_event_handler/4</a></h3>
+<div class="spec">
+<p><tt>add_guarded_event_handler(HandlerMod, Handler, Args, ExitFun) -&gt; AddResult</tt>
+<ul class="definitions"><li><tt>HandlerMod = module()</tt></li><li><tt>Handler = module() | {module(), term()}</tt></li><li><tt>Args = list()</tt></li><li><tt>ExitFun = <a href="#type-fun">'fun'</a>(Handler, Reason::term())</tt></li><li><tt>AddResult = ok | {error, Reason::term()}</tt></li></ul></p>
+</div><p>Add a "guarded" event handler to a gen_event instance.
+       A guarded handler is implemented as a supervised gen_server
+       (riak_core_eventhandler_guard) that adds a supervised handler in its
+       init() callback and exits when the handler crashes so it can be
+       restarted by the supervisor.</p>
+
+<h3 class="function"><a name="bucket_fixups-0">bucket_fixups/0</a></h3>
+<div class="spec">
+<p><tt>bucket_fixups() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="bucket_validators-0">bucket_validators/0</a></h3>
+<div class="spec">
+<p><tt>bucket_validators() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="delete_guarded_event_handler-3">delete_guarded_event_handler/3</a></h3>
+<div class="spec">
+<p><tt>delete_guarded_event_handler(HandlerMod, Handler, Args) -&gt; Result</tt>
+<ul class="definitions"><li><tt>HandlerMod = module()</tt></li><li><tt>Handler = module() | {module(), term()}</tt></li><li><tt>Args = term()</tt></li><li><tt>Result = term() | {error, module_not_found} | {'EXIT', Reason}</tt></li><li><tt>Reason = term()</tt></li></ul></p>
+</div><p><p>Delete a guarded event handler from a gen_event instance.</p>
+ 
+       <p>Args is an arbitrary term which is passed as one of the arguments to       
+Module:terminate/2.</p>
+ 
+       The return value is the return value of Module:terminate/2. If the
+       specified event handler is not installed, the function returns
+       {error,module_not_found}. If the callback function fails with Reason,
+       the function returns {'EXIT',Reason}.</p>
+
+<h3 class="function"><a name="down-1">down/1</a></h3>
+<div class="spec">
+<p><tt>down(Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="join-1">join/1</a></h3>
+<div class="spec">
+<p><tt>join(NodeStr) -&gt; any()</tt></p>
+</div><p>Join the ring found on the specified remote node
+ </p>
+
+<h3 class="function"><a name="join-4">join/4</a></h3>
+<div class="spec">
+<p><tt>join(X1, X2, Node, Rejoin) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="leave-0">leave/0</a></h3>
+<div class="spec">
+<p><tt>leave() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="register-1">register/1</a></h3>
+<div class="spec">
+<p><tt>register(Props) -&gt; any()</tt></p>
+</div><p>Register a riak_core application.</p>
+
+<h3 class="function"><a name="register-2">register/2</a></h3>
+<div class="spec">
+<p><tt>register(App, T) -&gt; any()</tt></p>
+</div><p>Register a named riak_core application.</p>
+
+<h3 class="function"><a name="remove-1">remove/1</a></h3>
+<div class="spec">
+<p><tt>remove(Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="remove_from_cluster-1">remove_from_cluster/1</a></h3>
+<div class="spec">
+<p><tt>remove_from_cluster(ExitingNode::atom()) -&gt; term()</tt><br></p>
+</div><p>Cause all partitions owned by ExitingNode to be taken over
+       by other nodes.</p>
+
+<h3 class="function"><a name="stop-0">stop/0</a></h3>
+<div class="spec">
+<p><tt>stop() -&gt; ok</tt><br></p>
+</div><p>Stop the riak application and the calling process.</p>
+
+<h3 class="function"><a name="stop-1">stop/1</a></h3>
+<div class="spec">
+<p><tt>stop(Reason) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="vnode_modules-0">vnode_modules/0</a></h3>
+<div class="spec">
+<p><tt>vnode_modules() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="wait_for_application-1">wait_for_application/1</a></h3>
+<div class="spec">
+<p><tt>wait_for_application(App) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="wait_for_service-1">wait_for_service/1</a></h3>
+<div class="spec">
+<p><tt>wait_for_service(Service) -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Apr 27 2012, 16:05:07.</i></p>
+</body>
+</html>

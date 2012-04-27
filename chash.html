@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module chash</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module chash</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>A consistent hashing implementation.
+
+<p><b>References</b><ul><li>Karger, D.; Lehman, E.; Leighton, T.; Panigrahy, R.; Levine, M.;
+  Lewin, D. (1997). "Consistent hashing and random trees". Proceedings of the
+  twenty-ninth annual ACM symposium on Theory of computing: 654~663. ACM Press
+  New York, NY, USA</li></ul></p>
+
+<h2><a name="description">Description</a></h2><p>A consistent hashing implementation.  The space described by the ring       
+coincides with SHA-1 hashes, and so any two keys producing the same       
+SHA-1 hash are considered identical within the ring.</p>
+ 
+       Warning: It is not recommended that code outside this module make use
+       of the structure of a chash.
+ 
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-chash">chash()</a></h3>
+<p><tt>chash() = {<a href="#type-num_partitions">num_partitions()</a>, [<a href="#type-node_entry">node_entry()</a>]}</tt></p>
+<p>  A Node is the unique identifier for the owner of a given partition.
+  An Erlang Pid works well here, but the chash module allows it to
+  be any term.</p>
+
+<h3 class="typedecl"><a name="type-chash_node">chash_node()</a></h3>
+<p><tt>chash_node() = term()</tt></p>
+<p>  Indices into the ring, used as keys for object location, are binary
+  representations of 160-bit integers.</p>
+
+<h3 class="typedecl"><a name="type-index">index()</a></h3>
+<p><tt>index() = binary()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-index_as_int">index_as_int()</a></h3>
+<p><tt>index_as_int() = integer()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-node_entry">node_entry()</a></h3>
+<p><tt>node_entry() = {<a href="#type-index_as_int">index_as_int()</a>, <a href="#type-chash_node">chash_node()</a>}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-num_partitions">num_partitions()</a></h3>
+<p><tt>num_partitions() = integer()</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#contains_name-2">contains_name/2</a></td><td>Return true if named Node owns any partitions in the ring, else false.</td></tr>
+<tr><td valign="top"><a href="#fresh-2">fresh/2</a></td><td>Create a brand new ring.</td></tr>
+<tr><td valign="top"><a href="#key_of-1">key_of/1</a></td><td>Given any term used to name an object, produce that object's key
+       into the ring.</td></tr>
+<tr><td valign="top"><a href="#lookup-2">lookup/2</a></td><td>Find the Node that owns the partition identified by IndexAsInt.</td></tr>
+<tr><td valign="top"><a href="#members-1">members/1</a></td><td>Return all Nodes that own any partitions in the ring.</td></tr>
+<tr><td valign="top"><a href="#merge_rings-2">merge_rings/2</a></td><td>Return a randomized merge of two rings.</td></tr>
+<tr><td valign="top"><a href="#next_index-2">next_index/2</a></td><td>Given the integer representation of a chash key,
+       return the next ring index integer value.</td></tr>
+<tr><td valign="top"><a href="#nodes-1">nodes/1</a></td><td>Return the entire set of NodeEntries in the ring.</td></tr>
+<tr><td valign="top"><a href="#predecessors-2">predecessors/2</a></td><td>Given an object key, return all NodeEntries in reverse order
+       starting at Index.</td></tr>
+<tr><td valign="top"><a href="#predecessors-3">predecessors/3</a></td><td>Given an object key, return the next N NodeEntries in reverse order
+       starting at Index.</td></tr>
+<tr><td valign="top"><a href="#ring_increment-1">ring_increment/1</a></td><td>Return increment between ring indexes given
+  the number of ring partitions.</td></tr>
+<tr><td valign="top"><a href="#size-1">size/1</a></td><td>Return the number of partitions in the ring.</td></tr>
+<tr><td valign="top"><a href="#successors-2">successors/2</a></td><td>Given an object key, return all NodeEntries in order starting at Index.</td></tr>
+<tr><td valign="top"><a href="#successors-3">successors/3</a></td><td>Given an object key, return the next N NodeEntries in order
+       starting at Index.</td></tr>
+<tr><td valign="top"><a href="#update-3">update/3</a></td><td>Make the partition beginning at IndexAsInt owned by Name'd node.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="contains_name-2">contains_name/2</a></h3>
+<div class="spec">
+<p><tt>contains_name(Name::<a href="#type-chash_node">chash_node()</a>, CHash::<a href="#type-chash">chash()</a>) -&gt; boolean()</tt><br></p>
+</div><p>Return true if named Node owns any partitions in the ring, else false.</p>
+
+<h3 class="function"><a name="fresh-2">fresh/2</a></h3>
+<div class="spec">
+<p><tt>fresh(NumPartitions::<a href="#type-num_partitions">num_partitions()</a>, SeedNode::<a href="#type-chash_node">chash_node()</a>) -&gt; <a href="#type-chash">chash()</a></tt><br></p>
+</div><p>Create a brand new ring.  The size and seednode are specified;
+       initially all partitions are owned by the seednode.  If NumPartitions
+       is not much larger than the intended eventual number of
+        participating nodes, then performance will suffer.</p>
+
+<h3 class="function"><a name="key_of-1">key_of/1</a></h3>
+<div class="spec">
+<p><tt>key_of(ObjectName::term()) -&gt; <a href="#type-index">index()</a></tt><br></p>
+</div><p>Given any term used to name an object, produce that object's key
+       into the ring.  Two names with the same SHA-1 hash value are
+       considered the same name.</p>
+
+<h3 class="function"><a name="lookup-2">lookup/2</a></h3>
+<div class="spec">
+<p><tt>lookup(IndexAsInt::<a href="#type-index_as_int">index_as_int()</a>, CHash::<a href="#type-chash">chash()</a>) -&gt; <a href="#type-chash_node">chash_node()</a></tt><br></p>
+</div><p>Find the Node that owns the partition identified by IndexAsInt.</p>
+
+<h3 class="function"><a name="members-1">members/1</a></h3>
+<div class="spec">
+<p><tt>members(CHash::<a href="#type-chash">chash()</a>) -&gt; [<a href="#type-chash_node">chash_node()</a>]</tt><br></p>
+</div><p>Return all Nodes that own any partitions in the ring.</p>
+
+<h3 class="function"><a name="merge_rings-2">merge_rings/2</a></h3>
+<div class="spec">
+<p><tt>merge_rings(CHashA::<a href="#type-chash">chash()</a>, CHashB::<a href="#type-chash">chash()</a>) -&gt; <a href="#type-chash">chash()</a></tt><br></p>
+</div><p>Return a randomized merge of two rings.
+       If multiple nodes are actively claiming nodes in the same
+       time period, churn will occur.  Be prepared to live with it.</p>
+
+<h3 class="function"><a name="next_index-2">next_index/2</a></h3>
+<div class="spec">
+<p><tt>next_index(IntegerKey::integer(), CHash::<a href="#type-chash">chash()</a>) -&gt; <a href="#type-index_as_int">index_as_int()</a></tt><br></p>
+</div><p>Given the integer representation of a chash key,
+       return the next ring index integer value.</p>
+
+<h3 class="function"><a name="nodes-1">nodes/1</a></h3>
+<div class="spec">
+<p><tt>nodes(CHash::<a href="#type-chash">chash()</a>) -&gt; [<a href="#type-node_entry">node_entry()</a>]</tt><br></p>
+</div><p>Return the entire set of NodeEntries in the ring.</p>
+
+<h3 class="function"><a name="predecessors-2">predecessors/2</a></h3>
+<div class="spec">
+<p><tt>predecessors(Index::<a href="#type-index">index()</a>, CHash::<a href="#type-chash">chash()</a>) -&gt; [<a href="#type-node_entry">node_entry()</a>]</tt><br></p>
+</div><p>Given an object key, return all NodeEntries in reverse order
+       starting at Index.</p>
+
+<h3 class="function"><a name="predecessors-3">predecessors/3</a></h3>
+<div class="spec">
+<p><tt>predecessors(Index::<a href="#type-index">index()</a>, CHash::<a href="#type-chash">chash()</a>, N::integer()) -&gt; [<a href="#type-node_entry">node_entry()</a>]</tt><br></p>
+</div><p>Given an object key, return the next N NodeEntries in reverse order
+       starting at Index.</p>
+
+<h3 class="function"><a name="ring_increment-1">ring_increment/1</a></h3>
+<div class="spec">
+<p><tt>ring_increment(NumPartitions::pos_integer()) -&gt; pos_integer()</tt><br></p>
+</div><p>Return increment between ring indexes given
+  the number of ring partitions.</p>
+
+<h3 class="function"><a name="size-1">size/1</a></h3>
+<div class="spec">
+<p><tt>size(CHash::<a href="#type-chash">chash()</a>) -&gt; integer()</tt><br></p>
+</div><p>Return the number of partitions in the ring.</p>
+
+<h3 class="function"><a name="successors-2">successors/2</a></h3>
+<div class="spec">
+<p><tt>successors(Index::<a href="#type-index">index()</a>, CHash::<a href="#type-chash">chash()</a>) -&gt; [<a href="#type-node_entry">node_entry()</a>]</tt><br></p>
+</div><p>Given an object key, return all NodeEntries in order starting at Index.</p>
+
+<h3 class="function"><a name="successors-3">successors/3</a></h3>
+<div class="spec">
+<p><tt>successors(Index::<a href="#type-index">index()</a>, CHash::<a href="#type-chash">chash()</a>, N::integer()) -&gt; [<a href="#type-node_entry">node_entry()</a>]</tt><br></p>
+</div><p>Given an object key, return the next N NodeEntries in order
+       starting at Index.</p>
+
+<h3 class="function"><a name="update-3">update/3</a></h3>
+<div class="spec">
+<p><tt>update(IndexAsInt::<a href="#type-index_as_int">index_as_int()</a>, Name::<a href="#type-chash_node">chash_node()</a>, CHash::<a href="#type-chash">chash()</a>) -&gt; <a href="#type-chash">chash()</a></tt><br></p>
+</div><p>Make the partition beginning at IndexAsInt owned by Name'd node.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Apr 27 2012, 16:05:07.</i></p>
+</body>
+</html>

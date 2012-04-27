@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module riak_core_vnode</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module riak_core_vnode</h1>
+<ul class="index"><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+
+<p><b>Behaviours:</b> <a href="gen_fsm.html"><tt>gen_fsm</tt></a>.</p>
+
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-sender">sender()</a></h3>
+<p><tt>sender() = {<a href="#type-sender_type">sender_type()</a>, reference(), pid()} | {server, undefined, undefined} | {fsm, undefined, pid()} | ignore</tt></p>
+
+
+<h3 class="typedecl"><a name="type-sender_type">sender_type()</a></h3>
+<p><tt>sender_type() = fsm | server | raw</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#active-2">active/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#active-3">active/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#behaviour_info-1">behaviour_info/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#code_change-4">code_change/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#core_status-1">core_status/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_mod_index-1">get_mod_index/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_event-3">handle_event/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_info-3">handle_info/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_sync_event-4">handle_sync_event/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handoff_error-3">handoff_error/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#monitor-1">monitor/1</a></td><td>Set up a monitor for the pid named by a <code><a href="#type-sender">sender()</a></code> vnode
+  argument.</td></tr>
+<tr><td valign="top"><a href="#reply-2">reply/2</a></td><td>Send a reply to a vnode request.</td></tr>
+<tr><td valign="top"><a href="#send_command-2">send_command/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#send_command_after-2">send_command_after/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set_forwarding-2">set_forwarding/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_link-4">start_link/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#terminate-3">terminate/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#trigger_handoff-2">trigger_handoff/2</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="active-2">active/2</a></h3>
+<div class="spec">
+<p><tt>active(Riak_coverage_req_v1, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="active-3">active/3</a></h3>
+<div class="spec">
+<p><tt>active(Event, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="behaviour_info-1">behaviour_info/1</a></h3>
+<div class="spec">
+<p><tt>behaviour_info(Other::atom()) -&gt; undefined | [{atom(), arity()}]</tt><br></p>
+</div>
+
+<h3 class="function"><a name="code_change-4">code_change/4</a></h3>
+<div class="spec">
+<p><tt>code_change(OldVsn, StateName, State, Extra) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="core_status-1">core_status/1</a></h3>
+<div class="spec">
+<p><tt>core_status(VNode) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="get_mod_index-1">get_mod_index/1</a></h3>
+<div class="spec">
+<p><tt>get_mod_index(VNode) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_event-3">handle_event/3</a></h3>
+<div class="spec">
+<p><tt>handle_event(R, StateName, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_info-3">handle_info/3</a></h3>
+<div class="spec">
+<p><tt>handle_info(Info, StateName, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_sync_event-4">handle_sync_event/4</a></h3>
+<div class="spec">
+<p><tt>handle_sync_event(X1, From, StateName, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handoff_error-3">handoff_error/3</a></h3>
+<div class="spec">
+<p><tt>handoff_error(Vnode, Err, Reason) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="init-1">init/1</a></h3>
+<div class="spec">
+<p><tt>init(X1) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="monitor-1">monitor/1</a></h3>
+<div class="spec">
+<p><tt>monitor(Sender::<a href="#type-sender">sender()</a>) -&gt; Monitor::reference()</tt><br></p>
+</div><p>Set up a monitor for the pid named by a <code><a href="#type-sender">sender()</a></code> vnode
+  argument.  If <code>Sender</code> was the atom <code>ignore</code>, this function sets up
+  a monitor on <code>self()</code> in order to return a valid (if useless)
+  monitor reference.</p>
+
+<h3 class="function"><a name="reply-2">reply/2</a></h3>
+<div class="spec">
+<p><tt>reply(X1::<a href="#type-sender">sender()</a>, Reply::term()) -&gt; any()</tt><br></p>
+</div><p>Send a reply to a vnode request.  If
+       the Ref is undefined just send the reply
+       for compatibility with pre-0.12 requestors.
+       If Ref is defined, send it along with the
+       reply.
+ </p>
+
+<h3 class="function"><a name="send_command-2">send_command/2</a></h3>
+<div class="spec">
+<p><tt>send_command(Pid, Request) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="send_command_after-2">send_command_after/2</a></h3>
+<div class="spec">
+<p><tt>send_command_after(Time::integer(), Request::term()) -&gt; reference()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="set_forwarding-2">set_forwarding/2</a></h3>
+<div class="spec">
+<p><tt>set_forwarding(VNode, ForwardTo) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="start_link-3">start_link/3</a></h3>
+<div class="spec">
+<p><tt>start_link(Mod, Index, Forward) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="start_link-4">start_link/4</a></h3>
+<div class="spec">
+<p><tt>start_link(Mod, Index, InitialInactivityTimeout, Forward) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="terminate-3">terminate/3</a></h3>
+<div class="spec">
+<p><tt>terminate(Reason, StateName, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="trigger_handoff-2">trigger_handoff/2</a></h3>
+<div class="spec">
+<p><tt>trigger_handoff(VNode, TargetNode) -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Apr 27 2012, 16:05:06.</i></p>
+</body>
+</html>

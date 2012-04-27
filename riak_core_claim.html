@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module riak_core_claim</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module riak_core_claim</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>The default functions used for claiming partition ownership.
+
+
+<h2><a name="description">Description</a></h2>The default functions used for claiming partition ownership.  Generally,
+       a wants_claim function should return either {yes, Integer} or 'no' where
+       Integer is the number of additional partitions wanted by this node.  A
+       choose_claim function should return a riak_core_ring with more
+       partitions claimed by this node than in the input ring.
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#choose_claim_v1-1">choose_claim_v1/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#choose_claim_v1-2">choose_claim_v1/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#choose_claim_v2-1">choose_claim_v2/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#choose_claim_v2-2">choose_claim_v2/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#claim_rebalance_n-2">claim_rebalance_n/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#default_choose_claim-1">default_choose_claim/1</a></td><td>Choose a partition at random.</td></tr>
+<tr><td valign="top"><a href="#default_choose_claim-2">default_choose_claim/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#default_wants_claim-1">default_wants_claim/1</a></td><td>Want a partition if we currently have less than floor(ringsize/nodes).</td></tr>
+<tr><td valign="top"><a href="#default_wants_claim-2">default_wants_claim/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#diagonal_stripe-2">diagonal_stripe/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#meets_target_n-2">meets_target_n/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#never_wants_claim-1">never_wants_claim/1</a></td><td>For use by nodes that should not claim any partitions.</td></tr>
+<tr><td valign="top"><a href="#random_choose_claim-1">random_choose_claim/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wants_claim_v1-1">wants_claim_v1/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wants_claim_v1-2">wants_claim_v1/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wants_claim_v2-1">wants_claim_v2/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wants_claim_v2-2">wants_claim_v2/2</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="choose_claim_v1-1">choose_claim_v1/1</a></h3>
+<div class="spec">
+<p><tt>choose_claim_v1(Ring) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="choose_claim_v1-2">choose_claim_v1/2</a></h3>
+<div class="spec">
+<p><tt>choose_claim_v1(Ring0, Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="choose_claim_v2-1">choose_claim_v2/1</a></h3>
+<div class="spec">
+<p><tt>choose_claim_v2(Ring) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="choose_claim_v2-2">choose_claim_v2/2</a></h3>
+<div class="spec">
+<p><tt>choose_claim_v2(Ring, Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="claim_rebalance_n-2">claim_rebalance_n/2</a></h3>
+<div class="spec">
+<p><tt>claim_rebalance_n(Ring0, Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="default_choose_claim-1">default_choose_claim/1</a></h3>
+<div class="spec">
+<p><tt>default_choose_claim(Ring::<a href="#type-riak_core_ring">riak_core_ring()</a>) -&gt; <a href="#type-riak_core_ring">riak_core_ring()</a></tt><br></p>
+</div><p>Choose a partition at random.</p>
+
+<h3 class="function"><a name="default_choose_claim-2">default_choose_claim/2</a></h3>
+<div class="spec">
+<p><tt>default_choose_claim(Ring, Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="default_wants_claim-1">default_wants_claim/1</a></h3>
+<div class="spec">
+<p><tt>default_wants_claim(Ring::<a href="#type-riak_core_ring">riak_core_ring()</a>) -&gt; {yes, integer()} | no</tt><br></p>
+</div><p>Want a partition if we currently have less than floor(ringsize/nodes).</p>
+
+<h3 class="function"><a name="default_wants_claim-2">default_wants_claim/2</a></h3>
+<div class="spec">
+<p><tt>default_wants_claim(Ring, Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="diagonal_stripe-2">diagonal_stripe/2</a></h3>
+<div class="spec">
+<p><tt>diagonal_stripe(Ring, Nodes) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="meets_target_n-2">meets_target_n/2</a></h3>
+<div class="spec">
+<p><tt>meets_target_n(Ring, TargetN) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="never_wants_claim-1">never_wants_claim/1</a></h3>
+<div class="spec">
+<p><tt>never_wants_claim(X1::<a href="#type-riak_core_ring">riak_core_ring()</a>) -&gt; no</tt><br></p>
+</div><p>For use by nodes that should not claim any partitions.</p>
+
+<h3 class="function"><a name="random_choose_claim-1">random_choose_claim/1</a></h3>
+<div class="spec">
+<p><tt>random_choose_claim(Ring) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="wants_claim_v1-1">wants_claim_v1/1</a></h3>
+<div class="spec">
+<p><tt>wants_claim_v1(Ring) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="wants_claim_v1-2">wants_claim_v1/2</a></h3>
+<div class="spec">
+<p><tt>wants_claim_v1(Ring0, Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="wants_claim_v2-1">wants_claim_v2/1</a></h3>
+<div class="spec">
+<p><tt>wants_claim_v2(Ring) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="wants_claim_v2-2">wants_claim_v2/2</a></h3>
+<div class="spec">
+<p><tt>wants_claim_v2(Ring, Node) -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Apr 27 2012, 16:05:07.</i></p>
+</body>
+</html>

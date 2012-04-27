@@ -1,0 +1,117 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module vclock</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module vclock</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>A simple Erlang implementation of vector clocks as inspired by Lamport logical clocks.
+
+<p><b>References</b><ul><li>Leslie Lamport (1978). "Time, clocks, and the ordering of events
+  in a distributed system". Communications of the ACM 21 (7): 558-565.
+ </li><li>Friedemann Mattern (1988). "Virtual Time and Global States of
+  Distributed Systems". Workshop on Parallel and Distributed Algorithms:
+  pp. 215-226</li></ul></p>
+
+<h2><a name="description">Description</a></h2>A simple Erlang implementation of vector clocks as inspired by Lamport logical clocks.
+ 
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-counter">counter()</a></h3>
+<p><tt>counter() = integer()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-timestamp">timestamp()</a></h3>
+<p><tt>timestamp() = integer()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-vclock">vclock()</a></h3>
+<p><b>abstract datatype</b>: <tt>vclock()</tt></p>
+<p> The timestamp is present but not used, in case a client wishes to inspect it.</p>
+
+<h3 class="typedecl"><a name="type-vclock_node">vclock_node()</a></h3>
+<p><tt>vclock_node() = term()</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#all_nodes-1">all_nodes/1</a></td><td>Return the list of all nodes that have ever incremented VClock.</td></tr>
+<tr><td valign="top"><a href="#descends-2">descends/2</a></td><td>Return true if Va is a direct descendant of Vb, else false -- remember, a vclock is its own descendant!</td></tr>
+<tr><td valign="top"><a href="#equal-2">equal/2</a></td><td>Compares two VClocks for equality.</td></tr>
+<tr><td valign="top"><a href="#fresh-0">fresh/0</a></td><td>Create a brand new vclock.</td></tr>
+<tr><td valign="top"><a href="#get_counter-2">get_counter/2</a></td><td>Get the counter value in VClock set from Node.</td></tr>
+<tr><td valign="top"><a href="#get_timestamp-2">get_timestamp/2</a></td><td>Get the timestamp value in a VClock set from Node.</td></tr>
+<tr><td valign="top"><a href="#increment-2">increment/2</a></td><td>Increment VClock at Node.</td></tr>
+<tr><td valign="top"><a href="#increment-3">increment/3</a></td><td>Increment VClock at Node.</td></tr>
+<tr><td valign="top"><a href="#merge-1">merge/1</a></td><td>Combine all VClocks in the input list into their least possible
+      common descendant.</td></tr>
+<tr><td valign="top"><a href="#prune-3">prune/3</a></td><td>Possibly shrink the size of a vclock, depending on current age and size.</td></tr>
+<tr><td valign="top"><a href="#timestamp-0">timestamp/0</a></td><td>Return a timestamp for a vector clock.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="all_nodes-1">all_nodes/1</a></h3>
+<div class="spec">
+<p><tt>all_nodes(VClock::<a href="#type-vclock">vclock()</a>) -&gt; [<a href="#type-vclock_node">vclock_node()</a>]</tt><br></p>
+</div><p>Return the list of all nodes that have ever incremented VClock.</p>
+
+<h3 class="function"><a name="descends-2">descends/2</a></h3>
+<div class="spec">
+<p><tt>descends(Va::<a href="#type-vclock">vclock()</a> | [], Vb::<a href="#type-vclock">vclock()</a> | []) -&gt; boolean()</tt><br></p>
+</div><p>Return true if Va is a direct descendant of Vb, else false -- remember, a vclock is its own descendant!</p>
+
+<h3 class="function"><a name="equal-2">equal/2</a></h3>
+<div class="spec">
+<p><tt>equal(VClockA::<a href="#type-vclock">vclock()</a>, VClockB::<a href="#type-vclock">vclock()</a>) -&gt; boolean()</tt><br></p>
+</div><p>Compares two VClocks for equality.</p>
+
+<h3 class="function"><a name="fresh-0">fresh/0</a></h3>
+<div class="spec">
+<p><tt>fresh() -&gt; <a href="#type-vclock">vclock()</a></tt><br></p>
+</div><p>Create a brand new vclock.</p>
+
+<h3 class="function"><a name="get_counter-2">get_counter/2</a></h3>
+<div class="spec">
+<p><tt>get_counter(Node::<a href="#type-vclock_node">vclock_node()</a>, VClock::<a href="#type-vclock">vclock()</a>) -&gt; <a href="#type-counter">counter()</a></tt><br></p>
+</div><p>Get the counter value in VClock set from Node.</p>
+
+<h3 class="function"><a name="get_timestamp-2">get_timestamp/2</a></h3>
+<div class="spec">
+<p><tt>get_timestamp(Node::<a href="#type-vclock_node">vclock_node()</a>, VClock::<a href="#type-vclock">vclock()</a>) -&gt; <a href="#type-timestamp">timestamp()</a> | undefined</tt><br></p>
+</div><p>Get the timestamp value in a VClock set from Node.</p>
+
+<h3 class="function"><a name="increment-2">increment/2</a></h3>
+<div class="spec">
+<p><tt>increment(Node::<a href="#type-vclock_node">vclock_node()</a>, VClock::<a href="#type-vclock">vclock()</a>) -&gt; <a href="#type-vclock">vclock()</a></tt><br></p>
+</div><p>Increment VClock at Node.</p>
+
+<h3 class="function"><a name="increment-3">increment/3</a></h3>
+<div class="spec">
+<p><tt>increment(Node::<a href="#type-vclock_node">vclock_node()</a>, IncTs::<a href="#type-timestamp">timestamp()</a>, VClock::<a href="#type-vclock">vclock()</a>) -&gt; <a href="#type-vclock">vclock()</a></tt><br></p>
+</div><p>Increment VClock at Node.</p>
+
+<h3 class="function"><a name="merge-1">merge/1</a></h3>
+<div class="spec">
+<p><tt>merge(VClocks::[<a href="#type-vclock">vclock()</a>]) -&gt; <a href="#type-vclock">vclock()</a> | []</tt><br></p>
+</div><p>Combine all VClocks in the input list into their least possible
+      common descendant.</p>
+
+<h3 class="function"><a name="prune-3">prune/3</a></h3>
+<div class="spec">
+<p><tt>prune(V::<a href="#type-vclock">vclock()</a>, Now::integer(), BucketProps::term()) -&gt; <a href="#type-vclock">vclock()</a></tt><br></p>
+</div><p>Possibly shrink the size of a vclock, depending on current age and size.</p>
+
+<h3 class="function"><a name="timestamp-0">timestamp/0</a></h3>
+<div class="spec">
+<p><tt>timestamp() -&gt; <a href="#type-timestamp">timestamp()</a></tt><br></p>
+</div><p>Return a timestamp for a vector clock</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Apr 27 2012, 16:05:06.</i></p>
+</body>
+</html>

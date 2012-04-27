@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Module riak_core_util</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module riak_core_util</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Various functions that are useful throughout Riak.
+
+
+<h2><a name="description">Description</a></h2>Various functions that are useful throughout Riak.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-load_file_response">load_file_response()</a></h3>
+<p><tt>load_file_response() = {module, Module::atom()} | {error, term()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-purge_response">purge_response()</a></h3>
+<p><tt>purge_response() = boolean()</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#build_tree-3">build_tree/3</a></td><td>Convert a list of elements into an N-ary tree.</td></tr>
+<tr><td valign="top"><a href="#chash_bucketonly_keyfun-1">chash_bucketonly_keyfun/1</a></td><td>Object/ring hashing fun that ignores Key, only uses Bucket.</td></tr>
+<tr><td valign="top"><a href="#chash_key-1">chash_key/1</a></td><td>Create a binary used for determining replica placement.</td></tr>
+<tr><td valign="top"><a href="#chash_std_keyfun-1">chash_std_keyfun/1</a></td><td>Default object/ring hashing fun, direct passthrough of bkey.</td></tr>
+<tr><td valign="top"><a href="#compare_dates-2">compare_dates/2</a></td><td>Compare two RFC1123 date strings or two now() tuples (or one
+       of each).</td></tr>
+<tr><td valign="top"><a href="#integer_to_list-2">integer_to_list/2</a></td><td>Convert an integer to its string representation in the given
+       base.</td></tr>
+<tr><td valign="top"><a href="#is_arch-1">is_arch/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#make_tmp_dir-0">make_tmp_dir/0</a></td><td>Create a unique directory in /tmp.</td></tr>
+<tr><td valign="top"><a href="#mkclientid-1">mkclientid/1</a></td><td>Create a unique-enough id for vclock clients.</td></tr>
+<tr><td valign="top"><a href="#moment-0">moment/0</a></td><td>Get the current "moment".</td></tr>
+<tr><td valign="top"><a href="#reload_all-1">reload_all/1</a></td><td>Ask each member node of the riak ring to reload the given
+       Module.</td></tr>
+<tr><td valign="top"><a href="#rpc_every_member-4">rpc_every_member/4</a></td><td>Make an RPC call to the given module and function on each
+       member of the cluster.</td></tr>
+<tr><td valign="top"><a href="#rpc_every_member_ann-4">rpc_every_member_ann/4</a></td><td>Same as rpc_every_member/4, but annotate the result set with
+       the name of the node returning the result.</td></tr>
+<tr><td valign="top"><a href="#start_app_deps-1">start_app_deps/1</a></td><td>Start depedent applications of App.</td></tr>
+<tr><td valign="top"><a href="#str_to_node-1">str_to_node/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#unique_id_62-0">unique_id_62/0</a></td><td>Create a random identifying integer, returning its string
+       representation in base 62.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="build_tree-3">build_tree/3</a></h3>
+<div class="spec">
+<p><tt>build_tree(N::integer(), Nodes::[term()], Opts::[term()]) -&gt; <a href="orddict.html#type-orddict">orddict:orddict</a>(Node::term(), Children::[term()])</tt><br></p>
+</div><p>Convert a list of elements into an N-ary tree. This conversion
+       works by treating the list as an array-based tree where, for
+       example in a binary 2-ary tree, a node at index i has children
+       2i and 2i+1. The conversion also supports a "cycles" mode where
+       the array is logically wrapped around to ensure leaf nodes also
+       have children by giving them backedges to other elements.</p>
+
+<h3 class="function"><a name="chash_bucketonly_keyfun-1">chash_bucketonly_keyfun/1</a></h3>
+<div class="spec">
+<p><tt>chash_bucketonly_keyfun(BKey::<a href="riak_object.html#type-bkey">riak_object:bkey()</a>) -&gt; <a href="chash.html#type-index">chash:index()</a></tt><br></p>
+</div><p>Object/ring hashing fun that ignores Key, only uses Bucket.</p>
+
+<h3 class="function"><a name="chash_key-1">chash_key/1</a></h3>
+<div class="spec">
+<p><tt>chash_key(BKey::<a href="riak_object.html#type-bkey">riak_object:bkey()</a>) -&gt; <a href="chash.html#type-index">chash:index()</a></tt><br></p>
+</div><p>Create a binary used for determining replica placement.</p>
+
+<h3 class="function"><a name="chash_std_keyfun-1">chash_std_keyfun/1</a></h3>
+<div class="spec">
+<p><tt>chash_std_keyfun(BKey::<a href="riak_object.html#type-bkey">riak_object:bkey()</a>) -&gt; <a href="chash.html#type-index">chash:index()</a></tt><br></p>
+</div><p>Default object/ring hashing fun, direct passthrough of bkey.</p>
+
+<h3 class="function"><a name="compare_dates-2">compare_dates/2</a></h3>
+<div class="spec">
+<p><tt>compare_dates(A::string(), B::string()) -&gt; boolean()</tt><br></p>
+</div><p>Compare two RFC1123 date strings or two now() tuples (or one
+       of each).  Return true if date A is later than date B.</p>
+
+<h3 class="function"><a name="integer_to_list-2">integer_to_list/2</a></h3>
+<div class="spec">
+<p><tt>integer_to_list(Integer::integer(), Base::integer()) -&gt; string()</tt><br></p>
+</div><p>Convert an integer to its string representation in the given
+       base.  Bases 2-62 are supported.</p>
+
+<h3 class="function"><a name="is_arch-1">is_arch/1</a></h3>
+<div class="spec">
+<p><tt>is_arch(Arch::atom()) -&gt; boolean()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="make_tmp_dir-0">make_tmp_dir/0</a></h3>
+<div class="spec">
+<p><tt>make_tmp_dir() -&gt; string()</tt><br></p>
+</div><p>Create a unique directory in /tmp.  Returns the path
+       to the new directory.</p>
+
+<h3 class="function"><a name="mkclientid-1">mkclientid/1</a></h3>
+<div class="spec">
+<p><tt>mkclientid(RemoteNode::term()) -&gt; ClientID::list()</tt><br></p>
+</div><p>Create a unique-enough id for vclock clients.</p>
+
+<h3 class="function"><a name="moment-0">moment/0</a></h3>
+<div class="spec">
+<p><tt>moment() -&gt; integer()</tt><br></p>
+</div><p>Get the current "moment".  Current implementation is the
+       number of seconds from year 0 to now, universal time, in
+       the gregorian calendar.</p>
+
+<h3 class="function"><a name="reload_all-1">reload_all/1</a></h3>
+<div class="spec">
+<p><tt>reload_all(Module::atom()) -&gt; [{<a href="#type-purge_response">purge_response()</a>, <a href="#type-load_file_response">load_file_response()</a>}]</tt><br></p>
+</div><p>Ask each member node of the riak ring to reload the given
+       Module.  Return is a list of the results of code:purge/1
+       and code:load_file/1 on each node.</p>
+
+<h3 class="function"><a name="rpc_every_member-4">rpc_every_member/4</a></h3>
+<div class="spec">
+<p><tt>rpc_every_member(Module::atom(), Function::atom(), Args::[term()], Timeout::integer() | infinity) -&gt; {Results::[term()], BadNodes::[node()]}</tt><br></p>
+</div><p>Make an RPC call to the given module and function on each
+       member of the cluster.  See rpc:multicall/5 for a description
+       of the return value.</p>
+
+<h3 class="function"><a name="rpc_every_member_ann-4">rpc_every_member_ann/4</a></h3>
+<div class="spec">
+<p><tt>rpc_every_member_ann(Module::module(), Function::atom(), Args::[term()], Timeout::integer() | infinity) -&gt; {Results::[{node(), term()}], Down::[node()]}</tt><br></p>
+</div><p>Same as rpc_every_member/4, but annotate the result set with
+       the name of the node returning the result.</p>
+
+<h3 class="function"><a name="start_app_deps-1">start_app_deps/1</a></h3>
+<div class="spec">
+<p><tt>start_app_deps(App::atom()) -&gt; ok</tt><br></p>
+</div><p>Start depedent applications of App.</p>
+
+<h3 class="function"><a name="str_to_node-1">str_to_node/1</a></h3>
+<div class="spec">
+<p><tt>str_to_node(Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="unique_id_62-0">unique_id_62/0</a></h3>
+<div class="spec">
+<p><tt>unique_id_62() -&gt; string()</tt><br></p>
+</div><p>Create a random identifying integer, returning its string
+       representation in base 62.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Apr 27 2012, 16:05:06.</i></p>
+</body>
+</html>
