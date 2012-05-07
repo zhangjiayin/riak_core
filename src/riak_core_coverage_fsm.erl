@@ -205,13 +205,15 @@ initialize(timeout, StateData0=#state{mod=Mod,
         {error, Reason} ->
             Mod:finish({error, Reason}, ModState);
         {CoverageVNodes, FilterVNodes} ->
+            {ok, UpModState} = Mod:plan(CoverageVNodes),
             Sender = {fsm, ReqId, self()},
             riak_core_vnode_master:coverage(Request,
                                             CoverageVNodes,
                                             FilterVNodes,
                                             Sender,
                                             VNodeMaster),
-            StateData = StateData0#state{coverage_vnodes=CoverageVNodes},
+            StateData = StateData0#state{coverage_vnodes=CoverageVNodes,
+                                         mod_state=UpModState},
             {next_state, waiting_results, StateData, Timeout}
     end.
 
@@ -222,7 +224,7 @@ waiting_results({{ReqId, VNode}, Results},
                                  mod_state=ModState,
                                  req_id=ReqId,
                                  timeout=Timeout}) ->
-    case Mod:process_results(Results, ModState) of
+    case Mod:process_results({VNode, Results}, ModState) of
         {ok, UpdModState} ->
             UpdStateData = StateData#state{mod_state=UpdModState},
             {next_state, waiting_results, UpdStateData, Timeout};
