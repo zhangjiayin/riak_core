@@ -205,7 +205,7 @@ initialize(timeout, StateData0=#state{mod=Mod,
         {error, Reason} ->
             Mod:finish({error, Reason}, ModState);
         {CoverageVNodes, FilterVNodes} ->
-            {ok, UpModState} = Mod:plan(CoverageVNodes),
+            {ok, UpModState} = Mod:plan(CoverageVNodes, ModState),
             Sender = {fsm, ReqId, self()},
             riak_core_vnode_master:coverage(Request,
                                             CoverageVNodes,
