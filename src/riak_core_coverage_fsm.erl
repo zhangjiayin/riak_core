@@ -195,10 +195,11 @@ initialize(timeout, StateData0=#state{mod=Mod,
                                       req_id=ReqId,
                                       timeout=Timeout,
                                       vnode_master=VNodeMaster}) ->
+    Offset = ReqId rem NVal,
     CoveragePlan = riak_core_coverage_plan:create_plan(VNodeSelector,
                                                        NVal,
                                                        PVC,
-                                                       ReqId,
+                                                       Offset,
                                                        NodeCheckService),
     case CoveragePlan of
         {error, Reason} ->
