@@ -66,11 +66,11 @@ human_size(S, [M|_]) ->
 %%
 %% @doc Given a number of `Micros' returns a human friendly time
 %%      duration in the form of `{Value, Units}'.
--spec human_time(non_neg_integer()) -> {Value::number(), Units::string()}.
+-spec human_time(number()) -> {Value::number(), Units::string()}.
 human_time(Micros) ->
     human_time(Micros, {1000, "us"}, [{1000, "ms"}, {1000, "s"}, {60, "min"}, {60, "hr"}, {24, "d"}]).
 
--spec human_time(non_neg_integer(), {pos_integer(), string()},
+-spec human_time(number(), {pos_integer(), string()},
                  [{pos_integer(), string()}]) ->
                         {number(), string()}.
 human_time(T, {Divisor, Unit}, Units) when T < Divisor orelse Units == [] ->
