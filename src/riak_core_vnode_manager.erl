@@ -35,6 +35,7 @@
 %% Field debugging
 -export([get_tab/0]).
 
+-include("riak_core.hrl").
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -58,8 +59,10 @@
 -type repair() :: #repair{}.
 -type repairs() :: [repair()].
 
+-type mod_idx() :: {module(), integer()}.
+-type forwarding() :: orddict(mod_idx(), riak_core_ring:pending_change()).
 -record(state, {idxtab,
-                forwarding :: [pid()],
+                forwarding :: forwarding(),
                 handoff :: [{term(), integer(), pid(), node()}],
                 known_modules :: [term()],
                 never_started :: [{integer(), term()}],

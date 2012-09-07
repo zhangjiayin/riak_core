@@ -109,7 +109,7 @@
          is_primary/2,
          chash/1]).
 
--export_type([riak_core_ring/0]).
+-export_type([pending_change/0, riak_core_ring/0]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

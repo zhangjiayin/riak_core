@@ -1,0 +1,1 @@
+-type orddict(K,V) :: [{Key::K, Value::V}].
