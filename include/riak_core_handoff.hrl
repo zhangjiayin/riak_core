@@ -17,7 +17,8 @@
 -type predicate() :: fun((any()) -> boolean()).
 
 -type index() :: integer().
--type mod_src_tgt() :: {module(), index(), index()}.
+-type mod_src_tgt() :: {module(), index(), index()} |
+                       {undefined, undefined, undefined}.
 -type mod_partition() :: {module(), index()}.
 
 -record(handoff_status,
@@ -25,7 +26,7 @@
           src_node              :: node(),
           target_node           :: node(),
           direction             :: inbound | outbound,
-          transport_pid         :: pid(),
+          transport_pid         :: pid() | undefined,
           transport_mon         :: reference(),
           timestamp             :: tuple(),
           status                :: any(),
