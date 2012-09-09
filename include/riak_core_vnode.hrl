@@ -8,11 +8,17 @@
                   ignore.
 -type partition() :: non_neg_integer().
 -type vnode_req() :: term().
+-type bin_vnode_req() :: binary().
 
 -record(riak_vnode_req_v1, {
           index :: partition(),
           sender=ignore :: sender(),
           request :: vnode_req()}).
+
+-record(riak_vnode_req_v2, {
+          index :: partition(),
+          sender=ignore :: sender(),
+          request :: bin_vnode_req()}).
 
 -record(riak_coverage_req_v1, {
           index :: partition(),

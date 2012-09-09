@@ -138,6 +138,14 @@ make_request(Request, Sender, Index) ->
               request=Request}.
 
 %% Make a request record - exported for use by legacy modules
+-spec make_request_v2(vnode_req(), sender(), partition()) -> #riak_vnode_req_v2{}.
+make_request_v2(Request, Sender, Index) ->
+    #riak_vnode_req_v2{
+              index=Index,
+              sender=Sender,
+              request=term_to_binary(Request)}.
+
+%% Make a request record - exported for use by legacy modules
 -spec make_coverage_request(vnode_req(), [{partition(), [partition()]}], sender(), partition()) -> #riak_coverage_req_v1{}.
 make_coverage_request(Request, KeySpaces, Sender, Index) ->
     #riak_coverage_req_v1{index=Index,
@@ -169,7 +177,12 @@ proxy_cast({VMaster, Node}, Req) ->
             do_proxy_cast({VMaster, Node}, Req)
     end.
 
-do_proxy_cast({VMaster, Node}, Req=?VNODE_REQ{index=Idx}) ->
+do_proxy_cast({VMaster, Node}, Req=#riak_vnode_req_v2{index=Idx}) ->
+    Mod = vmaster_to_vmod(VMaster),
+    Proxy = riak_core_vnode_proxy:reg_name(Mod, Idx, Node),
+    gen_fsm:send_event(Proxy, Req),
+    ok;
+do_proxy_cast({VMaster, Node}, Req=#riak_vnode_req_v1{index=Idx}) ->
     Mod = vmaster_to_vmod(VMaster),
     Proxy = riak_core_vnode_proxy:reg_name(Mod, Idx, Node),
     gen_fsm:send_event(Proxy, Req),
@@ -191,7 +204,11 @@ handle_cast({wait_for_service, Service}, State) ->
             riak_core:wait_for_service(Service)
     end,
     {noreply, State};
-handle_cast(Req=?VNODE_REQ{index=Idx}, State=#state{vnode_mod=Mod}) ->
+handle_cast(Req=#riak_vnode_req_v2{index=Idx}, State=#state{vnode_mod=Mod}) ->
+    Proxy = riak_core_vnode_proxy:reg_name(Mod, Idx),
+    gen_fsm:send_event(Proxy, Req),
+    {noreply, State};
+handle_cast(Req=#riak_vnode_req_v1{index=Idx}, State=#state{vnode_mod=Mod}) ->
     Proxy = riak_core_vnode_proxy:reg_name(Mod, Idx),
     gen_fsm:send_event(Proxy, Req),
     {noreply, State};

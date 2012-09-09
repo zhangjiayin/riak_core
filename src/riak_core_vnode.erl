@@ -299,10 +299,15 @@ active(?COVERAGE_REQ{keyspaces=KeySpaces,
                      sender=Sender}, State) ->
     %% Coverage request handled in handoff and non-handoff.  Will be forwarded if set.
     vnode_coverage(Sender, Request, KeySpaces, State);
-active(?VNODE_REQ{sender=Sender, request=Request},
+active(#riak_vnode_req_v2{sender=Sender, request=Request},
+       State=#state{handoff_node=HN}) when HN =:= none ->
+    vnode_command(Sender, binary_to_term(Request), State);
+active(#riak_vnode_req_v2{sender=Sender, request=Request},State) ->
+    vnode_handoff_command(Sender, binary_to_term(Request), State);
+active(#riak_vnode_req_v1{sender=Sender, request=Request},
        State=#state{handoff_node=HN}) when HN =:= none ->
     vnode_command(Sender, Request, State);
-active(?VNODE_REQ{sender=Sender, request=Request},State) ->
+active(#riak_vnode_req_v1{sender=Sender, request=Request},State) ->
     vnode_handoff_command(Sender, Request, State);
 active(handoff_complete, State) ->
     State2 = start_manager_event_timer(handoff_complete, State),
