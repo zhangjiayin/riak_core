@@ -153,7 +153,7 @@ test_link(Mod, From, RequestArgs, _Options, StateProps) ->
 init([Mod,
       From={_, ReqId, _},
       RequestArgs]) ->
-    {Request, VNodeConstraint, NVal, PrimaryVNodeCoverage,
+    {Request, VNodeConstraint, NVal, Primaries,
      NodeCheckService, VNodeMaster, Timeout, ModState} =
         Mod:init(From, RequestArgs),
     StateData = #state{mod=Mod,
