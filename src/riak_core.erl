@@ -334,8 +334,10 @@ register(App, [{bucket_validator, ValidationMod}|T]) ->
     register(App, T);
 register(App, [{stat_mod, StatMod}|T]) ->
     register_mod(App, StatMod, stat_mods),
+    register(App, T);
+register(App, [{stat_mods, StatMods}|T]) when is_list(StatMods) ->
+    [register_mod(App, StatMod, stat_mods) || StatMod <- StatMods],
     register(App, T).
-
 
 register_mod(App, Module, Type) when is_atom(Module), is_atom(Type) ->
     case Type of
