@@ -8,7 +8,7 @@ before_script:
   - "gem install travis-artifacts"
 script: "set -o pipefail; make test 2>&1 | tee test.log"
 after_failure:
-  - "tar cvzf test.tgz --exclude '*.beam' test.log .eunit"
+  - "tar cvzf test.tgz --exclude '*.beam' --exclude '*.erl' test.log .eunit"
   - "travis-artifacts upload --path test.tgz"
 language: erlang
 notifications:
