@@ -8,8 +8,8 @@ before_script:
   - "gem install travis-artifacts"
 script: "set -o pipefail; make test 2>&1 | tee test.log"
 after_failure:
-  - "gzip test.log"
-  - "travis-artifacts upload --path test.log.gz"
+  - "tar cvzf test.tgz --exclude '*.beam' test.log .eunit"
+  - "travis-artifacts upload --path test.tgz"
 language: erlang
 notifications:
   webhooks: http://basho-engbot.herokuapp.com/travis?key=72ce513a4a26166521f60f72511bfb905329db87
