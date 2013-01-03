@@ -1,3 +1,16 @@
+env:
+  global:
+    - "ARTIFACTS_AWS_REGION=us-east-1"
+    - "ARTIFACTS_S3_BUCKET=basho-build-artifacts"
+    - secure: "OkKmbmdZEwKfCe+1keY/ZhkMqcOB36af0cKKAuSQrd5/5+TI5EQLyYG5TY7z\nfexfslL/BIv1r2xPN7sq5OJMMFSpPWhzTSoleqEJQs73+vpV4XB6hGT1roK/\nCX0GYmc5vuIdZmYbWcDc/TUtpdvoxoydhSWwvJQF1u1WHxmxqn8="
+    - secure: "s4POHb3TKagwSWSj18cfjMSiBNb6p/5slK4xlzElpox/V9sSVWVOfTy/FfgC\nimM+UivORZW+5wCbryZnWhFs6KrynSzzDUO2XKbzMzvy5yPkjDgAdkSXA3Xs\nE1ELFA14Lb6kg8/JCzbAYZFUPNRky8T/rr6OohSu0F0daMp5IN0="
+before_script:
+  - "gem install travis-artifacts"
+script: "env > env.log && make test > test.log"
+after_script:
+  - "travis-artifacts upload --path env.log"
+after_failure:
+  - "travis-artifacts upload --path test.log"
 language: erlang
 notifications:
   webhooks: http://basho-engbot.herokuapp.com/travis?key=72ce513a4a26166521f60f72511bfb905329db87
