@@ -6,11 +6,11 @@ env:
     - secure: "s4POHb3TKagwSWSj18cfjMSiBNb6p/5slK4xlzElpox/V9sSVWVOfTy/FfgC\nimM+UivORZW+5wCbryZnWhFs6KrynSzzDUO2XKbzMzvy5yPkjDgAdkSXA3Xs\nE1ELFA14Lb6kg8/JCzbAYZFUPNRky8T/rr6OohSu0F0daMp5IN0="
 before_script:
   - "gem install travis-artifacts"
-script: "env > env.log && make test > test.log"
+script: "make test 2>&1 | tee test.log"
 after_script:
-  - "travis-artifacts upload --path env.log"
+  - "gzip test.log"
 after_failure:
-  - "travis-artifacts upload --path test.log"
+  - "travis-artifacts upload --path test.log.gz"
 language: erlang
 notifications:
   webhooks: http://basho-engbot.herokuapp.com/travis?key=72ce513a4a26166521f60f72511bfb905329db87

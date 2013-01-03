@@ -99,6 +99,7 @@ guarded_handler_test_case() ->
     ?assertEqual(?MODULE:get_events(), [baz]),
     ?assertEqual(riak_core:delete_guarded_event_handler(?MODULE,?MODULE,quux), quux),
     ?assertNot(lists:member(?MODULE, gen_event:which_handlers(?MODULE))),
+    ?assertEqual(3,4),
     ?assertEqual([], supervisor:which_children(riak_core_eventhandler_sup)).
 
 wait_for_handler(_, 0, _) ->
