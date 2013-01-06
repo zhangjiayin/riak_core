@@ -632,12 +632,17 @@ maybe_handoff(State=#state{index=Idx, mod=Mod, modstate=ModState,
     end.
 
 start_handoff(State=#state{index=Idx, mod=Mod, modstate=ModState}, TargetNode) ->
+    VNType = vnode_type(State),
+    HOType = case VNType of
+                 primary -> ownership_handoff;
+                 {fallback, _} -> hinted_handoff
+             end,
     case Mod:is_empty(ModState) of
         {true, NewModState} ->
             finish_handoff(State#state{modstate=NewModState,
                                        handoff_node=TargetNode});
         {false, NewModState} ->
-            case riak_core_handoff_manager:add_outbound(Mod,Idx,TargetNode,self()) of
+            case riak_core_handoff_manager:add_outbound(HOType,Mod,Idx,TargetNode,self()) of
                 {ok, Pid} ->
                     NewState = State#state{modstate=NewModState,
                                            handoff_pid=Pid,
@@ -648,6 +653,10 @@ start_handoff(State=#state{index=Idx, mod=Mod, modstate=ModState}, TargetNode) -
             end
     end.
 
+
+vnode_type(_State=#state{index=Idx}) ->
+    {ok, R} = riak_core_ring_manager:get_my_ring(),
+    riak_core_ring:vnode_type(R, Idx).
 
 %% @doc Send a reply to a vnode request.  If
 %%      the Ref is undefined just send the reply

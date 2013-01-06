@@ -27,6 +27,7 @@
          remove_member/1,
          force_replace/2,
          replace/2,
+         change_ring_size/1,
          plan/0,
          commit/0,
          clear/0,
@@ -111,6 +112,12 @@ remove_member(Node) ->
 %%      is joining the cluster and does not yet own any partitions of its own.
 replace(Node, NewNode) ->
     stage(Node, {replace, NewNode}).
+
+%% @doc Stage a request to change the size of the ring from the current size to
+%%      `NewRingSize'.
+change_ring_size(NewRingSize) ->
+    %% use node making the request, it will be ignored anyway
+    stage(node(), {change_size, NewRingSize}).
 
 %% @doc Stage a request for `Node' to be forcefully replaced by `NewNode'.
 %%      If committed, all partitions owned by `Node' will immediately be
@@ -347,7 +354,10 @@ valid_request(Node, Action, Changes, Ring) ->
         {replace, NewNode} ->
             valid_replace_request(Node, NewNode, Changes, Ring);
         {force_replace, NewNode} ->
-            valid_force_replace_request(Node, NewNode, Changes, Ring)
+            valid_force_replace_request(Node, NewNode, Changes, Ring);
+        {change_size, _NewRingSize} ->
+            %% TODO: actually validate
+            true
     end.
 
 %% @private
@@ -436,6 +446,9 @@ filter_changes(Changes, Ring) ->
                    end, Changes).
 
 %% @private
+filter_changes_pred(_, {change_size, _}, _, _) ->
+    %% TODO: filter out duplicates?
+    true;
 filter_changes_pred(Node, {Change, NewNode}, Changes, Ring)
   when (Change == replace) or (Change == force_replace) ->
     IsMember = (riak_core_ring:member_status(Ring, Node) /= invalid),
@@ -529,12 +542,22 @@ compute_next_ring(Changes, Seed, Ring) ->
     Ring2 = apply_changes(Ring, Changes),
     {_, Ring3} = maybe_handle_joining(node(), Ring2),
     {_, Ring4} = do_claimant_quiet(node(), Ring3, Replacing, Seed),
-    Members = riak_core_ring:all_members(Ring4),
-    case riak_core_gossip:any_legacy_gossip(Ring4, Members) of
+    case size_change(Changes) of
+        none ->
+            Ring5 = Ring4;
+        NewRingSize ->
+            Next = size_change_xfers(Ring, Ring4),
+            %% TODO: this is kind of dirty (having to set back the chash ourselves)
+            Ring5 = riak_core_ring:set_chash(
+                      riak_core_ring:set_pending_changes(Ring4, Next, NewRingSize),
+                      riak_core_ring:chash(Ring))
+    end,
+    Members = riak_core_ring:all_members(Ring5),
+    case riak_core_gossip:any_legacy_gossip(Ring5, Members) of
         true ->
             {legacy, Ring};
         false ->
-            {ok, Ring4}
+            {ok, Ring5}
     end.
 
 %% @private
@@ -571,7 +594,17 @@ change({{force_replace, NewNode}, Node}, Ring) ->
     Ring2 = riak_core_ring:add_member(NewNode, Ring, NewNode),
     Ring3 = riak_core_ring:change_owners(Ring2, Reassign),
     Ring4 = riak_core_ring:remove_member(Node, Ring3, Node),
-    Ring4.
+    Ring4;
+change({{change_size, NewRingSize}, _Node}, Ring) ->
+    riak_core_ring:change_size(Ring, NewRingSize).
+
+%% @private
+size_change([]) ->
+    none;
+size_change([{_Node, {change_size, NewRingSize}} | _]) ->
+    NewRingSize;
+size_change([_ | Rest]) ->
+    size_change(Rest).
 
 internal_ring_changed(Node, CState) ->
     {Changed, CState5} = do_claimant(Node, CState, fun log/2),
@@ -649,22 +682,63 @@ do_claimant_quiet(Node, CState, Replacing, Seed) ->
 do_claimant(Node, CState, Log) ->
     do_claimant(Node, CState, [], erlang:now(), Log).
 
+%% TODO: preventing the claimant run here during size change is too broad of scope
+%%       we don't allow things like down nodes/force-removals/etc
 do_claimant(Node, CState, Replacing, Seed, Log) ->
     AreJoining = are_joining_nodes(CState),
+    IsChangingSize = riak_core_ring:is_changing_size(CState),
+    SizeChangeDone = case IsChangingSize of
+                         false -> whocares;
+                         true -> size_change_complete(CState)
+                     end,
     {C1, CState2} = maybe_update_claimant(Node, CState),
     {C2, CState3} = maybe_handle_auto_joining(Node, CState2),
-    case AreJoining of
-        true ->
+    case {AreJoining, IsChangingSize, SizeChangeDone} of
+        {true, _, _} ->
             %% Do not rebalance if there are joining nodes
             Changed = C1 or C2,
             CState5 = CState3;
-        false ->
+        {_, true, false} ->
+            Changed = C1 or C2,
+            CState5 = CState3;
+        {_, true, true} ->
+            {C3, CState5} = maybe_finish_size_change(Node, CState),
+            Changed = (C1 or C2 or C3);
+        {false, false, _} ->
             {C3, CState4} =
                 maybe_update_ring(Node, CState3, Replacing, Seed, Log),
             {C4, CState5} = maybe_remove_exiting(Node, CState4),
             Changed = (C1 or C2 or C3 or C4)
     end,
     {Changed, CState5}.
+
+maybe_finish_size_change(Node, CState) ->
+    Claimant = riak_core_ring:claimant(CState),
+    case Claimant of
+        Node ->
+            {true, riak_core_ring:future_ring(CState)};
+        _ ->
+            {false, CState}
+    end.
+
+size_change_complete([]) ->
+    true;
+size_change_complete([{_, _, _, Transfers} | Rest]) ->
+    case idx_size_change_complete(Transfers) of
+        true ->
+            size_change_complete(Rest);
+        false ->
+            false
+    end;
+size_change_complete(CState) ->
+    size_change_complete(riak_core_ring:pending_changes(CState)).
+
+idx_size_change_complete([]) ->
+    true;
+idx_size_change_complete([{_, _, _, awaiting} | _]) ->
+    false;
+idx_size_change_complete([_ | Rest]) ->
+    idx_size_change_complete(Rest).
 
 %% @private
 maybe_update_claimant(Node, CState) ->
@@ -890,6 +964,36 @@ rebalance_ring(_CNode, [], CState) ->
     Next;
 rebalance_ring(_CNode, Next, _CState) ->
     Next.
+
+size_change_xfers(OrigRing, NewRing) ->
+    NumPartitions0 = riak_core_ring:num_partitions(OrigRing),
+    NumPartitions1 = riak_core_ring:num_partitions(NewRing),
+    ExpFactor = NumPartitions1 div NumPartitions0,
+    OutboundCount = (NumPartitions0 * (ExpFactor - 1)) + 1,
+    %% TODO: probably want some functions on riak_core_ring so we don't need this explicitly
+    CHash1 = riak_core_ring:chash(NewRing),
+    lists:foldl(fun({Idx, Owner}, Acc) ->
+                        %% (nastily) abusing the fact that we are working with
+                        %% a typical transfer list in the new ring, using it to build
+                        %% the actual transfer list to change the ring size
+                        {_, NextOwner0, _} = riak_core_ring:next_owner(NewRing, Idx),
+                        case {NextOwner0, chash:predecessors(Idx, CHash1, OutboundCount)} of
+                            %% existing index not being transferred so we drop it from the
+                            %% list (it will always be head of predecessor list)
+                            {undefined, [_ | Outbound]} ->
+                                Targets = Outbound;
+                            {_, Outbound} ->
+                                Targets = Outbound
+                        end,
+                        NewIdxOwner = riak_core_ring:next_owning_node(NewRing, Idx),
+                        TargetIdxs =
+                            [{I, riak_core_ring:next_owning_node(NewRing, I), [], awaiting}
+                             || {I, _} <- Targets],
+                        %% Owner may =:= NewIdxOwner however, TargetIdxs will be non-empty
+                        [{Idx, Owner, NewIdxOwner, TargetIdxs} | Acc]
+                end,
+                [],
+                riak_core_ring:all_owners(OrigRing)).
 
 %% @private
 handle_down_nodes(CState, Next) ->

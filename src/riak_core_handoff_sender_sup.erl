@@ -28,7 +28,8 @@
 
 %% API
 -export([start_handoff/5,
-         start_repair/6
+         start_repair/6,
+         start_sender/5
         ]).
 
 -include("riak_core_handoff.hrl").
@@ -38,8 +39,11 @@
 %%% API
 %%%===================================================================
 
-start_link () ->
+start_link() ->
     supervisor:start_link({local,?MODULE},?MODULE,[]).
+
+start_sender(Type, Module, TargetNode, VNode, Opts) ->
+    supervisor:start_child(?MODULE, [TargetNode, Module, {Type, Opts}, VNode]).
 
 %% @doc Start the handoff process for the module (`Module'), partition
 %%      (`Partition'), and vnode (`VNode') from the local node to the

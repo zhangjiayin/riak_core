@@ -30,6 +30,7 @@
 
 -export([all_members/1,
          all_owners/1,
+         index_owner/2,
          all_preflists/2,
          diff_nodes/2,
          equal_rings/2,
@@ -38,7 +39,6 @@
          fresh/2,
          get_meta/2,
          get_buckets/1,
-         index_owner/2,
          my_indices/1,
          num_partitions/1,
          owner_node/1,
@@ -97,6 +97,7 @@
          next_owner/1,
          next_owner/2,
          next_owner/3,
+         next_owning_node/2,
          all_next_owners/1,
          change_owners/2,
          handoff_complete/3,
@@ -109,6 +110,17 @@
          reconcile_members/2,
          is_primary/2,
          chash/1]).
+
+-export([
+         change_size/2,
+         set_chash/2,
+         set_pending_changes/3,
+         is_changing_size/1,
+         pending_copies/2,
+         vnode_type/2,
+         copy_complete/4,
+         preflist_position/3
+        ]).
 
 -export_type([riak_core_ring/0]).
 
@@ -126,7 +138,7 @@
                                  % bucket N-value, etc)
 
     clustername :: {node(), term()}, 
-    next     :: [{integer(), node(), node(), [module()], awaiting | complete}],
+    next     :: {undefined | integer(), [next_entry()]}, %% TODO: this change requires a v3 probably
     members  :: [{node(), {member_status(), vclock:vclock(), []}}],
     claimant :: node(),
     seen     :: [{node(), vclock:vclock()}],
@@ -155,6 +167,16 @@
 -type riak_core_ring() :: ?CHSTATE{}.
 -type chstate() :: riak_core_ring().
 
+-type next_entry() :: {Index :: integer(),
+                       Owner :: node(),
+                       NextOwner :: node(),
+                       [module()],
+                       awaiting | complete} |
+                      {Index :: integer(),
+                       Owner :: node(),
+                       NextOwner :: node(),
+                       [{CopyIdx :: integer(), CopyOwner :: node(), [module()], awaiting | complete}]}.
+
 -type pending_change() :: {Owner :: node(),
                            NextOwner :: node(),
                            awaiting | complete}
@@ -165,12 +187,14 @@
 %% ===================================================================
 
 %% @doc Returns true if the given ring is a legacy ring.
+%% TODO: update for v3 (changes in next)
 legacy_ring(#chstate{}) ->
     true;
 legacy_ring(_) ->
     false.
 
 %% @doc Upgrade old ring structures to the latest format.
+%% TODO: update for v3 (changes in next)
 upgrade(Old=?CHSTATE{}) ->
     Old;
 upgrade(Old=#chstate{}) ->
@@ -202,6 +226,7 @@ upgrade(Old=#chstate{}) ->
     end.
 
 %% @doc Downgrade the latest ring structure to a specified version.
+%% TODO: update for v3 (changes in next)
 downgrade(1,?CHSTATE{nodename=Node,
                      vclock=VC,
                      chring=Ring,
@@ -254,6 +279,10 @@ is_primary(Ring, IdxNode) ->
 -spec chash(chstate()) -> CHash::chash:chash().
 chash(?CHSTATE{chring=CHash}) ->
     CHash.
+
+%% @doc Set `CHash' for the ring
+set_chash(State, CHash) ->
+    State?CHSTATE{chring=CHash}.
 
 %% @doc Produce a list of all nodes that are members of the cluster
 -spec all_members(State :: chstate()) -> [Node :: term()].
@@ -322,12 +351,20 @@ fresh(RingSize, NodeName) ->
              clustername={NodeName, erlang:now()},
              members=[{NodeName, {valid, VClock, [{gossip_vsn, GossipVsn}]}}],
              chring=chash:fresh(RingSize, NodeName),
-             next=[],
+             next={undefined,[]},
              claimant=NodeName,
              seen=[{NodeName, VClock}],
              rvsn=VClock,
              vclock=VClock,
              meta=dict:new()}.
+
+change_size(State, NewSize) ->
+    NewRing = lists:foldl(fun({Idx,Owner}, RingAcc) ->
+                                  chash:update(Idx, Owner, RingAcc)
+                          end,
+                          chash:fresh(NewSize, '$dummyhost@newsize'),
+                          all_owners(State)),
+    set_chash(State, NewRing).
 
 % @doc Return a value from the cluster metadata dict
 -spec get_meta(Key :: term(), State :: chstate()) -> 
@@ -376,6 +413,15 @@ owner_node(State) ->
 -spec preflist(Key :: binary(), State :: chstate()) ->
                                [{Index :: integer(), Node :: term()}].
 preflist(Key, State) -> chash:successors(Key, State?CHSTATE.chring).
+
+preflist_position(Key, Idx, State) ->
+    Preflist = preflist(Key, State),
+    internal_preflist_position(Preflist, Idx, 0).
+
+internal_preflist_position([{Idx, _} | _], Idx, Acc) ->
+    Acc;
+internal_preflist_position([_ | Rest], Idx, Acc) ->
+    internal_preflist_position(Rest, Idx, Acc+1).
 
 %% @doc Return a randomly-chosen node from amongst the owners.
 -spec random_node(State :: chstate()) -> Node :: term().
@@ -467,6 +513,8 @@ responsible_index(ChashKey, ?CHSTATE{chring=Ring}) ->
     <<IndexAsInt:160/integer>> = ChashKey,
     chash:next_index(IndexAsInt, Ring).
 
+%% @doc Transfer ownership of an index in the current ring
+%%      from the current owner to node
 -spec transfer_node(Idx :: integer(), Node :: term(), MyState :: chstate()) ->
            chstate().
 transfer_node(Idx, Node, MyState) ->
@@ -673,37 +721,70 @@ indices(State, Node) ->
 %%      pending ownership transfers have completed.
 -spec future_indices(State :: chstate(), Node :: node()) -> [integer()].
 future_indices(State, Node) ->
-    FutureState = change_owners(State, all_next_owners(State)),
-    indices(FutureState, Node).
+    indices(future_ring(State), Node).
 
-%% @private
+%% @doc return all ownership information in the form of {Index, Node}
+%%      pairs for the future ring after all changes have been applied
+-spec all_next_owners(chstate()) -> [{integer(), term()}].
 all_next_owners(CState) ->
     Next = riak_core_ring:pending_changes(CState),
-    [{Idx, NextOwner} || {Idx, _, NextOwner, _, _} <- Next].
+    case is_changing_size(CState) of
+        true ->
+            %% every index will have data copied to it or is not being
+            %% re-assinged so looking at the copy list for each
+            %% existing index we can determine all the next owners
+            lists:ukeysort(1, lists:flatmap(
+                                fun({_, _, _, L}) ->
+                                        [{Idx, NextOwner} || {Idx, NextOwner, _, _} <- L]
+                                end,
+                                Next));
+        false ->
+            [{Idx, NextOwner} || {Idx, _, NextOwner, _, _} <- Next]
+    end.
 
-%% @private
+%% @doc For each `{Idx, Node}' pair in Reassign, transfer ownership
+%%      from the current owner to `Node'
+-spec change_owners(chstate(), [{integer(), term()}]) -> chstate().
 change_owners(CState, Reassign) ->
     lists:foldl(fun({Idx, NewOwner}, CState0) ->
                         riak_core_ring:transfer_node(Idx, NewOwner, CState0)
                 end, CState, Reassign).
 
 %% @doc Return all indices that a node is scheduled to give to another.
-disowning_indices(State, Node) ->
-    [Idx || {Idx, Owner, _NextOwner, _Mods, _Status} <- State?CHSTATE.next,
+%% TODO: adjustments required for expanding ring
+disowning_indices(?CHSTATE{next={_,Next}}, Node) ->
+    [Idx || {Idx, Owner, _NextOwner, _Mods, _Status} <- Next,
             Owner =:= Node].
 
 %% @doc Returns a list of all pending ownership transfers.
-pending_changes(State) ->
+pending_changes(?CHSTATE{next={_NextSize,Transfers}}) ->
     %% For now, just return next directly.
-    State?CHSTATE.next.
+    Transfers.
 
-set_pending_changes(State, Transfers) ->
-    State?CHSTATE{next=Transfers}.
+set_pending_changes(State=?CHSTATE{next={NextSize,_OldTransfers}}, Transfers) ->
+    State?CHSTATE{next={NextSize,Transfers}}.
+
+set_pending_changes(State, Transfers, NewRingSize) ->
+    State?CHSTATE{next={NewRingSize, Transfers}}.
+
+next_owning_node(State=?CHSTATE{chring=CHash}, Idx) ->
+    case next_owner(State, Idx) of
+        {undefined, undefined, undefined} ->
+            chash:lookup(Idx, CHash);
+        {_, NextOwner, _} ->
+            NextOwner
+    end.
 
 %% @doc Return details for a pending partition ownership change.
+%% TODO: the addition of changing ring size differs semantically from calling this
+%%       function under normal ownership transfer because even if the existing index
+%%       is not being moved it will be included in the next list (due to additional ownership
+%%       copies) and thus instead of returning {undefined, undefined, undefined} the function
+%%       will return {Owner, Owner, Status}. The way this function is called we can somewhat
+%%       get away with this but it is unclear and should be addressed.
 -spec next_owner(State :: chstate(), Idx :: integer()) -> pending_change().
-next_owner(State, Idx) ->
-    case lists:keyfind(Idx, 1, State?CHSTATE.next) of
+next_owner(?CHSTATE{next={_NextSize,Next}}, Idx) ->
+    case lists:keyfind(Idx, 1, Next) of
         false ->
             {undefined, undefined, undefined};
         NInfo ->
@@ -711,12 +792,20 @@ next_owner(State, Idx) ->
     end.
 
 %% @doc Return details for a pending partition ownership change.
+%% TODO: see TODO for next_owner/2 re: differing return semantics under size change
 -spec next_owner(State :: chstate(), Idx :: integer(),
                  Mod :: module()) -> pending_change().
-next_owner(State, Idx, Mod) ->
-    case lists:keyfind(Idx, 1, State?CHSTATE.next) of
+next_owner(?CHSTATE{next={_,Next}}, Idx, Mod) ->
+    case lists:keyfind(Idx, 1, Next) of
         false ->
             {undefined, undefined, undefined};
+        {_, Owner, NextOwner, _Transfers} ->
+            %% TODO: this is just a temporary patch since this function is only called
+            %%       by riak_core_vnode_manager:check_forward/3 so by always returning
+            %%       awaiting we essentially punt on forwarding. this should actually
+            %%       compute if all transfers for the idx under expansion have completed
+            %%       and return that status
+            {Owner, NextOwner, awaiting};
         {_, Owner, NextOwner, _Transfers, complete} ->
             {Owner, NextOwner, complete};
         {_, Owner, NextOwner, Transfers, _Status} ->
@@ -729,8 +818,65 @@ next_owner(State, Idx, Mod) ->
     end.
 
 %% @private
-next_owner({_, Owner, NextOwner, _Transfers, Status}) ->
+%% TODO: add spec/doc since this is exported/used external to this module
+next_owner({_, Owner, NextOwner, _Transfers, Status}) -> %% typical ownership transfer
+    {Owner, NextOwner, Status};
+next_owner({_, Owner, NextOwner, Transfers}) -> %% ring size change transfers
+    HasAwaiting = lists:any(fun({_, _, _, awaiting}) -> true;
+                               ({_, _, _, complete}) -> false end,
+                            Transfers),
+    Status = case HasAwaiting of
+                 true -> awaiting;
+                 false -> complete
+             end,
     {Owner, NextOwner, Status}.
+
+%% @doc given an index, determine what [{TargetIdx, TargetNode}] copies
+%%      are scheduled
+-spec pending_copies(chstate(), integer()) -> [{integer(), term()}].
+pending_copies(?CHSTATE{next={undefined,_}}, _Idx) ->
+    [];
+pending_copies(?CHSTATE{next={_,Transfers}}, Idx) ->
+    case lists:keyfind(Idx, 1, Transfers) of
+        false ->
+            [];
+        {Idx, _, _, CopyXfers} ->
+            [{I, Owner} || {I, Owner, _, _} <- CopyXfers]
+    end.
+
+is_changing_size(?CHSTATE{next={undefined,_}}) ->
+    false;
+is_changing_size(_) ->
+    true.
+
+-spec vnode_type(chstate(),integer()) -> primary |
+                                         {fallback, term()} |
+                                         new_primary |
+                                         future_primary.
+vnode_type(State, Idx) ->
+    vnode_type(State, Idx, node()).
+
+-spec vnode_type(chstate(),integer(), term()) -> primary |
+                                                 {fallback, term()} |
+                                                 new_primary |
+                                                 future_primary.
+vnode_type(State, Idx, Node) ->
+    try index_owner(State, Idx) of
+        Node ->
+            primary;
+        Owner ->
+            case next_owner(State, Idx) of
+                {_, Node, _} ->
+                    future_primary;
+                _ ->
+                    {fallback, Owner}
+            end
+    catch
+        error:badarg ->
+            %% idx doesn't exist so must be an index in a future, larger ring
+            new_primary
+    end.
+
 
 %% @doc Returns true if all cluster members have seen the current ring.
 -spec ring_ready(State :: chstate()) -> boolean().
@@ -791,7 +937,14 @@ ring_changed(Node, State) ->
 
 %% @doc Return the ring that will exist after all pending ownership transfers
 %%      have completed.
-future_ring(State) ->
+future_ring(State=?CHSTATE{next={undefined,_}}) ->
+    calculate_future_ring(State);
+future_ring(State0=?CHSTATE{next={NewRingSize,_}}) ->
+    State1 = change_size(State0, NewRingSize),
+    calculate_future_ring(State1).
+
+%% @private
+calculate_future_ring(State) ->
     FutureState = change_owners(State, all_next_owners(State)),
     %% Individual nodes will move themselves from leaving to exiting if they
     %% have no ring ownership, this is implemented in riak_core_ring_handler.
@@ -806,7 +959,7 @@ future_ring(State) ->
                                     StateAcc
                             end
                     end, FutureState, Leaving),
-    FutureState2?CHSTATE{next=[]}.
+    FutureState2?CHSTATE{next={undefined,[]}}.
 
 pretty_print(Ring, Opts) ->
     OptNumeric = lists:member(numeric, Opts),
@@ -862,7 +1015,7 @@ pretty_print(Ring, Opts) ->
 
 %% @doc Return a ring with all transfers cancelled - for claim sim
 cancel_transfers(Ring) ->
-    Ring?CHSTATE{next=[]}.
+    Ring?CHSTATE{next={undefined,[]}}.
 
 %% ===================================================================
 %% Legacy reconciliation
@@ -1057,35 +1210,55 @@ merge_next_status(awaiting, awaiting) ->
     awaiting.
 
 %% @private
-%% @doc Merge two next lists that must be of the same size and have
-%%      the same Idx/Owner pair.
-reconcile_next(Next1, Next2) ->
-    lists:zipwith(fun({Idx, Owner, Node, Transfers1, Status1},
-                      {Idx, Owner, Node, Transfers2, Status2}) ->
-                          {Idx, Owner, Node,
+%% @doc Merge two next tuples that must have equal next sizes and
+%%      have next lists of the same size and have the same Idx/Owner pair.
+reconcile_next({NextSize,Next1}, {NextSize,Next2}) ->
+    NewNext = lists:zipwith(fun({Idx, Owner, Node, Transfers1, Status1},
+                                {Idx, Owner, Node, Transfers2, Status2}) ->
+                                    {Idx, Owner, Node,
+                                     ordsets:union(Transfers1, Transfers2),
+                                     merge_next_status(Status1, Status2)};
+                               ({Idx, Owner, Node, Copies1},
+                                {Idx, Owner, Node, Copies2}) ->
+                                       {Idx, Owner, Node, reconcile_copies(Copies1, Copies2)}
+                            end, Next1, Next2),
+    {NextSize, NewNext}.
+
+%% TODO: needs moar test
+%% makes same assumptions about lists and such as reconcile next (TODO: this is a crap doc)
+reconcile_copies(Copies1, Copies2) ->
+    lists:zipwith(fun({Idx, Owner, Transfers1, Status1},
+                      {Idx, Owner, Transfers2, Status2}) ->
+                          {Idx, Owner,
                            ordsets:union(Transfers1, Transfers2),
                            merge_next_status(Status1, Status2)}
-                  end, Next1, Next2).
+                  end, Copies1, Copies2).
 
 %% @private
-%% @doc Merge two next lists that may be of different sizes and
+%% @doc Merge two next tuples that may have different next sizes
+%%      and next lists that may be of different sizes and
 %%      may have different Idx/Owner pairs. When different, the
-%%      pair associated with BaseNext is chosen. When equal,
-%%      the merge is the same as in reconcile_next/2.
-reconcile_divergent_next(BaseNext, OtherNext) ->
+%%      Idx/Owner pair associated with BaseNext is chosen. When equal
+%%      the merge is the same as {@link reconcile_next/2}. BaseNext's
+%%      size is always chosen
+%% TODO: account for difference in next list when ring is expanding, e.g. this doesn't really work
+%% TODO: revisit BaseNext size always chosen
+reconcile_divergent_next({BaseSize, BaseNext}, {_OtherSize, OtherNext}) ->
     MergedNext = substitute(1, BaseNext, OtherNext),
-    lists:zipwith(fun({Idx, Owner1, Node1, Transfers1, Status1},
-                      {Idx, Owner2, Node2, Transfers2, Status2}) ->
-                          Same = ({Owner1, Node1} =:= {Owner2, Node2}),
-                          case {Same, Status1, Status2} of
-                              {false, _, _} ->
-                                  {Idx, Owner1, Node1, Transfers1, Status1};
-                              _ ->
-                                  {Idx, Owner1, Node1,
-                                   ordsets:union(Transfers1, Transfers2),
-                                   merge_next_status(Status1, Status2)}
-                          end
-                  end, BaseNext, MergedNext).
+    %% TODO: this will crash during ring expansion due to differing ring format
+    NewNext = lists:zipwith(fun({Idx, Owner1, Node1, Transfers1, Status1},
+                                {Idx, Owner2, Node2, Transfers2, Status2}) ->
+                                    Same = ({Owner1, Node1} =:= {Owner2, Node2}),
+                                    case {Same, Status1, Status2} of
+                                        {false, _, _} ->
+                                            {Idx, Owner1, Node1, Transfers1, Status1};
+                                        _ ->
+                                            {Idx, Owner1, Node1,
+                                             ordsets:union(Transfers1, Transfers2),
+                                             merge_next_status(Status1, Status2)}
+                                    end
+                            end, BaseNext, MergedNext),
+    {BaseSize, NewNext}.
 
 %% @private
 substitute(Idx, TL1, TL2) ->
@@ -1189,8 +1362,30 @@ merge_status(_, leaving) ->
 merge_status(_, _) ->
     invalid.
 
+copy_complete(State=?CHSTATE{next={NextSize,Next0}, vclock=VClock0}, SrcIdx, TrgtIdx, Mod) ->
+    {SrcIdx, Owner, NextOwner, Copies0} = lists:keyfind(SrcIdx, 1, Next0),
+    {TrgtIdx, TrgtOwner, Transfers0, Status0} = lists:keyfind(TrgtIdx, 1, Copies0),
+    Transfers1 = ordsets:add_element(Mod, Transfers0),
+    %% TODO: there is a lot shared w/ transfer_complete/3 below
+    VNodeMods =
+        ordsets:from_list([VMod || {_, VMod} <- riak_core:vnode_modules()]),
+    Status1 = case {Status0, Transfers1} of
+                  {complete, _} ->
+                      complete;
+                  {awaiting, VNodeMods} ->
+                      complete;
+                  _ ->
+                      awaiting
+              end,
+    Copies1 = lists:keyreplace(TrgtIdx, 1, Copies0, {TrgtIdx, TrgtOwner, Transfers1, Status1}),
+    Next1 = lists:keyreplace(SrcIdx, 1, Next0,
+                             {SrcIdx, Owner, NextOwner, Copies1}),
+    VClock1 = vclock:increment(Owner, VClock0),
+    State?CHSTATE{next={NextSize,Next1}, vclock=VClock1}.
+
 %% @private
-transfer_complete(CState=?CHSTATE{next=Next, vclock=VClock}, Idx, Mod) ->
+%% TODO: update to handle changing ring size (not be defined or error?)
+transfer_complete(CState=?CHSTATE{next={NextSize,Next}, vclock=VClock}, Idx, Mod) ->
     {Idx, Owner, NextOwner, Transfers, Status} = lists:keyfind(Idx, 1, Next),
     Transfers2 = ordsets:add_element(Mod, Transfers),
     VNodeMods =
@@ -1206,7 +1401,7 @@ transfer_complete(CState=?CHSTATE{next=Next, vclock=VClock}, Idx, Mod) ->
     Next2 = lists:keyreplace(Idx, 1, Next,
                              {Idx, Owner, NextOwner, Transfers2, Status2}),
     VClock2 = vclock:increment(Owner, VClock),
-    CState?CHSTATE{next=Next2, vclock=VClock2}.
+    CState?CHSTATE{next={NextSize,Next2}, vclock=VClock2}.
 
 %% @private
 get_members(Members) ->
@@ -1486,25 +1681,45 @@ ring_version_test() ->
     ?assertEqual(nodeB, index_owner(RingT5,0)).
 
 reconcile_next_test() ->
-    Next1 = [{0, nodeA, nodeB, [riak_pipe_vnode], awaiting},
-             {1, nodeA, nodeB, [riak_pipe_vnode], awaiting},
-             {2, nodeA, nodeB, [riak_pipe_vnode], complete}],
-    Next2 = [{0, nodeA, nodeB, [riak_kv_vnode], complete},
-             {1, nodeA, nodeB, [], awaiting},
-             {2, nodeA, nodeB, [], awaiting}],
-    Next3 = [{0, nodeA, nodeB, [riak_kv_vnode, riak_pipe_vnode], complete},
-             {1, nodeA, nodeB, [riak_pipe_vnode], awaiting},
-             {2, nodeA, nodeB, [riak_pipe_vnode], complete}],
+    Next1 = {undefined, [{0, nodeA, nodeB, [riak_pipe_vnode], awaiting},
+                         {1, nodeA, nodeB, [riak_pipe_vnode], awaiting},
+                         {2, nodeA, nodeB, [riak_pipe_vnode], complete}]},
+    Next2 = {undefined, [{0, nodeA, nodeB, [riak_kv_vnode], complete},
+                         {1, nodeA, nodeB, [], awaiting},
+                         {2, nodeA, nodeB, [], awaiting}]},
+    Next3 = {undefined, [{0, nodeA, nodeB, [riak_kv_vnode, riak_pipe_vnode], complete},
+                         {1, nodeA, nodeB, [riak_pipe_vnode], awaiting},
+                         {2, nodeA, nodeB, [riak_pipe_vnode], complete}]},
     ?assertEqual(Next3, reconcile_next(Next1, Next2)),
 
-    Next4 = [{0, nodeA, nodeB, [riak_pipe_vnode], awaiting},
-             {1, nodeA, nodeB, [], awaiting},
-             {2, nodeA, nodeB, [riak_pipe_vnode], awaiting}],
-    Next5 = [{0, nodeA, nodeC, [riak_kv_vnode], complete},
-             {2, nodeA, nodeB, [riak_kv_vnode], complete}],
-    Next6 = [{0, nodeA, nodeB, [riak_pipe_vnode], awaiting},
-             {1, nodeA, nodeB, [], awaiting},
-             {2, nodeA, nodeB, [riak_kv_vnode, riak_pipe_vnode], complete}],
+    Next4 = {undefined, [{0, nodeA, nodeB, [riak_pipe_vnode], awaiting},
+                         {1, nodeA, nodeB, [], awaiting},
+                         {2, nodeA, nodeB, [riak_pipe_vnode], awaiting}]},
+    Next5 = {undefined, [{0, nodeA, nodeC, [riak_kv_vnode], complete},
+                         {2, nodeA, nodeB, [riak_kv_vnode], complete}]},
+    Next6 = {undefined, [{0, nodeA, nodeB, [riak_pipe_vnode], awaiting},
+                         {1, nodeA, nodeB, [], awaiting},
+                         {2, nodeA, nodeB, [riak_kv_vnode, riak_pipe_vnode], complete}]},
     ?assertEqual(Next6, reconcile_divergent_next(Next4, Next5)).
+
+change_size_test() ->
+    Ring0 = fresh(4, a),
+    Ring1 = change_size(Ring0, 8),
+    Ring2 = change_size(Ring0, 2),
+    ?assertEqual(8, num_partitions(Ring1)),
+    ?assertEqual(2, num_partitions(Ring2)),
+    valid_ring_change(Ring0, Ring1),
+    valid_ring_change(Ring0, Ring1).
+
+valid_ring_change(Ring0, Ring1) ->
+    lists:foreach(fun({Idx, Owner}) ->
+                          case lists:keyfind(Idx, 1, all_owners(Ring0)) of
+                              false ->
+                                  ?assertEqual('$dummyhost@newsize', Owner);
+                              {Idx, OrigOwner} ->
+                                  ?assertEqual(OrigOwner, Owner)
+                          end
+                  end,
+                  all_owners(Ring1)).
 
 -endif.
