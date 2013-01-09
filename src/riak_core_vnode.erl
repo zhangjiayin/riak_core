@@ -37,6 +37,7 @@
 -export([get_mod_index/1,
          set_forwarding/2,
          trigger_handoff/2,
+         trigger_copy/2,
          core_status/1,
          handoff_error/3]).
 
@@ -170,6 +171,9 @@ set_forwarding(VNode, ForwardTo) ->
 
 trigger_handoff(VNode, TargetNode) ->
     gen_fsm:send_all_state_event(VNode, {trigger_handoff, TargetNode}).
+
+trigger_copy(Vnode, Target) ->
+    gen_fsm:send_all_state_event(Vnode, {trigger_copy, Target}).
 
 core_status(VNode) ->
     gen_fsm:sync_send_all_state_event(VNode, core_status).
@@ -308,14 +312,23 @@ active(?VNODE_REQ{sender=Sender, request=Request},State) ->
 active(handoff_complete, State) ->
     State2 = start_manager_event_timer(handoff_complete, State),
     continue(State2);
+%% TODO: handle copy errors
 active({handoff_error, _Err, _Reason}, State) ->
     State2 = start_manager_event_timer(handoff_error, State),
+    continue(State2);
+active({copy_complete, TargetIdx}, State) ->
+    %% TODO: hijacking this manager event timer is wrong (mutliple
+    %%       copy completes finishing at once will lose events if
+    %%       vnode doesn't get initial message)
+    State2 = start_manager_event_timer({copy_complete, TargetIdx}, State),
     continue(State2);
 active({send_manager_event, Event}, State) ->
     State2 = start_manager_event_timer(Event, State),
     continue(State2);
 active({trigger_handoff, TargetNode}, State) ->
      maybe_handoff(State, TargetNode);
+active({trigger_copy, {TargetIdx, TargetNode}}, State) ->
+    maybe_copy(State, TargetIdx, TargetNode);
 active(unregistered, State=#state{mod=Mod, index=Index}) ->
     %% Add exclusion so the ring handler will not try to spin this vnode
     %% up until it receives traffic.
@@ -452,6 +465,20 @@ handle_event({trigger_handoff, _TargetNode}, _StateName,
              State=#state{modstate={deleted, _ModState}}) ->
     continue(State);
 handle_event(R={trigger_handoff, _TargetNode}, _StateName, State) ->
+    active(R, State);
+handle_event({finish_copy, _TargetIdx}, _StateName,
+             State=#state{modstate={deleted, _ModState}}) ->
+    %% TODO: what to really do here?
+    continue(State);
+handle_event({finish_copy, TargetIdx}, _StateName, State) ->
+    %% TODO: stop manager event timer?
+    %% TODO: check state for valid copy
+    stop_manager_event_timer(State),
+    finish_copy(State, TargetIdx);
+handle_event({trigger_copy, _Target}, _StateName,
+             State=#state{modstate={deleted, _ModState}}) ->
+    continue(State);
+handle_event(R={trigger_copy, _Target}, _StateName, State) ->
     active(R, State);
 handle_event(R=?VNODE_REQ{}, _StateName, State) ->
     active(R, State);
@@ -653,6 +680,49 @@ start_handoff(State=#state{index=Idx, mod=Mod, modstate=ModState}, TargetNode) -
             end
     end.
 
+maybe_copy(State=#state{modstate={deleted,_}}, _TargetIdx, _TargetSrc) ->
+    continue(State);
+maybe_copy(State, TargetIdx, TargetNode) ->
+    %% TODO: validate copy like maybe_handoff
+    start_copy(State, TargetIdx, TargetNode).
+
+start_copy(State=#state{index=MyIdx, mod=Mod, modstate=ModState}, TargetIdx, TargetNode) ->
+    case Mod:is_empty(ModState) of
+        {true, NewModState} ->
+            finish_copy(State#state{modstate=NewModState}, TargetIdx);
+        {false, NewModState} ->
+            case riak_core_handoff_manager:add_outbound(ownership_copy,
+                                                        Mod,
+                                                        MyIdx,
+                                                        TargetIdx,
+                                                        TargetNode,
+                                                        self()) of
+                {ok, _Pid} ->
+                    %% TODO: add copy to some state element, similar to start_handoff
+                    continue(State#state{modstate=NewModState});
+                {error,_Reason} ->
+                    continue(State#state{modstate=NewModState})
+            end
+    end.
+
+finish_copy(State=#state{mod=Mod,
+                         index=Idx}, TargetIdx) ->
+    case mark_copy_complete(Idx, TargetIdx, Mod) of
+        ok ->
+            %% TODO: setup forwarding
+            %% TODO: remove copy from state
+            continue(State)
+    end.
+
+mark_copy_complete(SrcIdx, TargetIdx, Mod) ->
+    riak_core_ring_manager:ring_trans(
+      fun(Ring, _) ->
+              %% TODO: similar checks to mark_handoff_complete/4
+              {new_ring, riak_core_ring:copy_complete(Ring, SrcIdx, TargetIdx, Mod)}
+      end,
+      []),
+    %% TODO: something similar to mark_handoff_complete
+    ok.
 
 vnode_type(_State=#state{index=Idx}) ->
     {ok, R} = riak_core_ring_manager:get_my_ring(),

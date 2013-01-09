@@ -197,12 +197,8 @@ start_fold(TargetNode, Module, {Type, Opts}, ParentPid, SslOpts) ->
 
                  case Type of
                      repair -> ok;
-                     ownership_copy ->
-                         %% TODO: dat punt. this should be similar to ownership/hinted
-                         %%       handoff completion.
-                         gen_server:cast(riak_core_vnode_manager,
-                                         {ownership_copy_complete, Module,
-                                          SrcPartition, TargetPartition});
+                     ownership_copy -> gen_fsm:send_event(ParentPid,
+                                                          {copy_complete, TargetPartition});
                      _ -> gen_fsm:send_event(ParentPid, handoff_complete)
                  end;
              {error, ErrReason} ->

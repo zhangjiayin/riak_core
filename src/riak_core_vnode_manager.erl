@@ -415,28 +415,6 @@ handle_cast({kill_repairs, Reason}, State) ->
     kill_repairs(State#state.repairs, Reason),
     {noreply, State#state{repairs=[]}};
 
-%% TODO: most of this should be in vnode, the rest should be by handling a vnode event.
-%%       see generation of this message in riak_core_handoff_sender for more info
-handle_cast({ownership_copy_complete, Module, SrcIdx, TrgtIdx}, State=#state{handoff=HO}) ->
-    NewHO = case orddict:find({Module, SrcIdx}, HO) of
-                [{TrgtIdx, _}] ->
-                    orddict:erase({Module, SrcIdx});
-                Targets when is_list(Targets) ->
-                    NewTargets = [{TI,TN} || {TI, TN} <- Targets, TI =/= TrgtIdx],
-                    orddict:store({Module, SrcIdx}, NewTargets, HO);
-                _ -> %% either key is missing or is a regular ownership_transfer
-                    HO
-    end,
-    lager:info("marking ownership_copy complete for ~p to ~p for mod ~p",
-               [SrcIdx, TrgtIdx, Module]),
-    %% TODO: improve & move me
-    riak_core_ring_manager:ring_trans(
-      fun(Ring, _) ->
-              {new_ring, riak_core_ring:copy_complete(Ring, SrcIdx, TrgtIdx, Module)}
-      end,
-      []),
-    {noreply, State#state{handoff=NewHO}};
-
 handle_cast(_, State) ->
     {noreply, State}.
 
@@ -489,6 +467,18 @@ handle_vnode_event(handoff_complete, Mod, Idx, Pid, State) ->
 handle_vnode_event(handoff_error, Mod, Idx, Pid, State) ->
     NewHO = orddict:erase({Mod, Idx}, State#state.handoff),
     gen_fsm:send_all_state_event(Pid, cancel_handoff),
+    {noreply, State#state{handoff=NewHO}};
+handle_vnode_event({copy_complete, TargetIdx}, Mod, Idx, Pid, State=#state{handoff=HO}) ->
+    NewHO = case orddict:find({Mod, Idx}, HO) of
+                [{TargetIdx, _}] ->
+                    orddict:erase({Mod, Idx});
+                Targets when is_list(Targets) ->
+                    NewTargets = [{TI,TN} || {TI, TN} <- Targets, TI =/= TargetIdx],
+                    orddict:store({Mod, Idx}, NewTargets, HO);
+                _ -> %% either key is missing or is a regular ownership_transfer
+                    HO
+            end,
+    gen_fsm:send_all_state_event(Pid, {finish_copy, TargetIdx}),
     {noreply, State#state{handoff=NewHO}}.
 
 %% @private
@@ -706,23 +696,16 @@ maybe_trigger_handoff(Mod, SrcIdx, TrgtIdx, State) ->
     Pid = get_vnode(SrcIdx, Mod, State),
     maybe_trigger_handoff(Mod, SrcIdx, TrgtIdx, Pid, State).
 
-maybe_trigger_handoff(Mod, SrcIdx, TrgtIdx, Pid, #state{handoff=HO}) ->
+maybe_trigger_handoff(Mod, SrcIdx, TargetIdx, Pid, #state{handoff=HO}) ->
     case orddict:find({Mod, SrcIdx}, HO) of
         {ok, Targets} when is_list(Targets) ->
-            case [{TI, TN} || {TI, TN} <- Targets, TI =:= TrgtIdx] of
+            case [{TI, TN} || {TI, TN} <- Targets, TI =:= TargetIdx] of
                 [] ->
                     ok;
-                [{TrgtIdx, TargetNode}] ->
-                    %% TODO: this should really go through the vnode
-                    %%       instead of adding the outbound handoff here
-                    riak_core_handoff_manager:add_outbound(ownership_copy,
-                                                           Mod,
-                                                           SrcIdx,
-                                                           TrgtIdx,
-                                                           TargetNode,
-                                                           Pid)
+                [{TargetIdx, TargetNode}] ->
+                    riak_core_vnode:trigger_copy(Pid, {TargetIdx, TargetNode})
             end;
-        {ok, TargetNode} when SrcIdx =:= TrgtIdx -> %% hinted handoff/ownership xfer
+        {ok, TargetNode} when SrcIdx =:= TargetIdx -> %% hinted handoff/ownership xfer
             riak_core_vnode:trigger_handoff(Pid, TargetNode);
         error ->
             ok
