@@ -46,8 +46,6 @@ precondition(_S, {call, _, fresh, [Num, _]}) ->
     Num > 0;
 precondition(_S, {call, _, _, _}) ->
     true.
-                  
-
 
 %% @doc <i>Optional callback</i>, used to test a precondition during test execution.
 %% -spec dynamic_precondition(S :: eqc_statem:dynamic_state(), C :: eqc_statem:call()) -> boolean().
@@ -60,8 +58,11 @@ precondition(_S, {call, _, _, _}) ->
                     Res :: term()) -> boolean().
 postcondition(_S, {call, ?MODULE, fresh, [NumPartitions, NodeName]}, 
               {Model, Res}) ->
+    {RNum, RHash} = Res,
     length(Model) == NumPartitions andalso 
-    lists:all(fun({Index, Node}) -> Node == NodeName end, Model); 
+      lists:all(fun({Index, Node}) -> Node == NodeName end, Model) andalso
+      length(RHash) == NumPartitions andalso
+      RNum == NumPartitions;
 postcondition(_S, {call, _, _, _}, _Res) ->
     true.
 
