@@ -1,5 +1,5 @@
 -module(handoff_manager_eqc).
-
+-ifdef(EQC).
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_statem.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -323,3 +323,5 @@ has_outbound(ReturnVals) ->
 vnode_pid(Idx) ->
     {ok, Pid} = riak_core_vnode_manager:get_vnode_pid(Idx, mock_vnode),
     Pid.
+
+-endif.
