@@ -79,13 +79,13 @@ setup() ->
 
 teardown() ->
     stop_pid(whereis(riak_core_ring_events)),
-    stop_pid(whereis(riak_core_ring_manager)),
     stop_pid(whereis(riak_core_vnode_sup)),
     stop_pid(whereis(riak_core_vnode_proxy_sup)),
     stop_pid(whereis(riak_core_vnode_manager)),
     stop_pid(whereis(riak_core_handoff_manager)),
     stop_pid(whereis(riak_core_handoff_sender_sup)),
     stop_pid(whereis(riak_core_handoff_receiver_sup)),
+    riak_core_ring_manager:stop(),
     catch meck:unload(riak_core_handoff_sender),
     catch meck:unload(riak_core_handoff_receiver).
 
