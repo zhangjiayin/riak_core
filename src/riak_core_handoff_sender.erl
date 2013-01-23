@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2007-2012 Basho Technologies, Inc.  All Rights Reserved.
+%% Copyright (c) 2007-2013 Basho Technologies, Inc.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -98,8 +98,8 @@ start_fold(TargetNode, Module, {Type, Opts}, ParentPid, SslOpts) ->
                                              15000),
                      {Skt, ssl};
                 true ->
-                     {ok, Skt} = gen_tcp:connect(TNHandoffIP, Port, SockOpts, 15000),
-                     {Skt, gen_tcp}
+                     {ok, Skt} = gen_utp:connect(TNHandoffIP, Port, SockOpts, 15000),
+                     {Skt, gen_utp}
              end,
 
          %% Piggyback the sync command from previous releases to send
@@ -213,7 +213,7 @@ start_fold(TargetNode, Module, {Type, Opts}, ParentPid, SslOpts) ->
          exit:{shutdown, timeout} ->
              %% A receive timeout during handoff
              riak_core_stat:update(handoff_timeouts),
-             ?log_fail("because of TCP recv timeout", []),
+             ?log_fail("because of uTP recv timeout", []),
              exit({shutdown, timeout});
          exit:{shutdown, {error, Reason}} ->
              ?log_fail("because of ~p", [Reason]),
