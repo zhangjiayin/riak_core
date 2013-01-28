@@ -799,13 +799,18 @@ next_owner(?CHSTATE{next={_,Next}}, Idx, Mod) ->
     case lists:keyfind(Idx, 1, Next) of
         false ->
             {undefined, undefined, undefined};
-        {_, Owner, NextOwner, _Transfers} ->
-            %% TODO: this is just a temporary patch since this function is only called
-            %%       by riak_core_vnode_manager:check_forward/3 so by always returning
-            %%       awaiting we essentially punt on forwarding. this should actually
-            %%       compute if all transfers for the idx under expansion have completed
-            %%       and return that status
-            {Owner, NextOwner, awaiting};
+        {_, Owner, NextOwner, Transfers} ->
+            %% TODO: this really shouldn't be necessary but the next list
+            %%       version from the last apprach is still being used. update when changed
+            HasAwaiting = lists:any(fun({_, _, Mods, _}) ->
+                                            not ordsets:is_element(Mod, Mods)
+                                    end,
+                                    Transfers),
+            Status = case HasAwaiting of
+                         true -> awaiting;
+                         false -> complete
+                     end,
+            {Owner, NextOwner, Status};
         {_, Owner, NextOwner, _Transfers, complete} ->
             {Owner, NextOwner, complete};
         {_, Owner, NextOwner, Transfers, _Status} ->

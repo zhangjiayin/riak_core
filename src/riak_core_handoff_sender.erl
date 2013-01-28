@@ -167,6 +167,7 @@ start_fold(TargetNode, Module, {Type, Opts}, ParentPid, SslOpts) ->
                  module=Module,
                  parent=ParentPid,
                  tcp_mod=TcpMod,
+                 stats=FinalStats,
                  total=SentCount} = R,
 
          case ErrStatus of
@@ -190,9 +191,9 @@ start_fold(TargetNode, Module, {Type, Opts}, ParentPid, SslOpts) ->
                  FoldTimeDiff = end_fold_time(StartFoldTime),
 
                  lager:info("~p transfer of ~p from ~p ~p to ~p ~p"
-                            " completed: sent ~p objects in ~.2f seconds",
+                            " completed: sent ~p of ~p objects in ~.2f seconds",
                             [Type, Module, SrcNode, SrcPartition,
-                             TargetNode, TargetPartition, SentCount,
+                             TargetNode, TargetPartition, FinalStats#ho_stats.objs, SentCount,
                              FoldTimeDiff]),
 
                  case Type of

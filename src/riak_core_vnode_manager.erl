@@ -387,7 +387,7 @@ handle_cast(force_handoffs, State) ->
     {ok, Ring} = riak_core_ring_manager:get_raw_ring(),
     State2 = update_handoff(AllVNodes, Ring, State),
 
-    [maybe_trigger_handoff(Mod, Idx, Idx, Pid, State2)
+    [maybe_trigger_handoff(Mod, Idx, Pid, State2)
      || {Mod, Idx, Pid} <- AllVNodes],
 
     {noreply, State2};
@@ -458,7 +458,7 @@ handle_info({'DOWN', MonRef, process, _P, _I}, State) ->
 
 %% @private
 handle_vnode_event(inactive, Mod, Idx, Pid, State) ->
-    maybe_trigger_handoff(Mod, Idx, Idx, Pid, State),
+    maybe_trigger_handoff(Mod, Idx, Pid, State),
     {noreply, State};
 handle_vnode_event(handoff_complete, Mod, Idx, Pid, State) ->
     NewHO = orddict:erase({Mod, Idx}, State#state.handoff),
@@ -467,18 +467,6 @@ handle_vnode_event(handoff_complete, Mod, Idx, Pid, State) ->
 handle_vnode_event(handoff_error, Mod, Idx, Pid, State) ->
     NewHO = orddict:erase({Mod, Idx}, State#state.handoff),
     gen_fsm:send_all_state_event(Pid, cancel_handoff),
-    {noreply, State#state{handoff=NewHO}};
-handle_vnode_event({copy_complete, TargetIdx}, Mod, Idx, Pid, State=#state{handoff=HO}) ->
-    NewHO = case orddict:find({Mod, Idx}, HO) of
-                [{TargetIdx, _}] ->
-                    orddict:erase({Mod, Idx});
-                Targets when is_list(Targets) ->
-                    NewTargets = [{TI,TN} || {TI, TN} <- Targets, TI =/= TargetIdx],
-                    orddict:store({Mod, Idx}, NewTargets, HO);
-                _ -> %% either key is missing or is a regular ownership_transfer
-                    HO
-            end,
-    gen_fsm:send_all_state_event(Pid, {finish_copy, TargetIdx}),
     {noreply, State#state{handoff=NewHO}}.
 
 %% @private
@@ -508,19 +496,37 @@ trigger_ownership_handoff(Ring, Mods, State) ->
       riak_core_ring:is_changing_size(Ring)).
 
 trigger_ownership_handoff(Transfers, Mods, State, true) ->
-    %% TODO: honor forced_ownership_handoff throttle
-    %% TODO: this is not a very smart way of kicking of xfers because we will
-    %        probably cause many copies from the same index instead of an
-    %        even balance across source indexes
-    Awaiting = lists:flatmap(fun({SrcIdx, Node, _, Copies}) when Node =:= node() ->
-                                     [{Mod, SrcIdx, TrgtIdx} ||
-                                         {TrgtIdx, _, _, awaiting} <- Copies,
-                                         Mod <- Mods];
-                                ({_, _, _, _}) ->
-                                     []
-                             end,
-                             Transfers),
-    [maybe_trigger_handoff(Mod, SrcIdx, TrgtIdx, State) || {Mod, SrcIdx, TrgtIdx} <- Awaiting],
+    Limit = app_helper:get_env(riak_core,
+                               forced_ownership_handoff,
+                               ?DEFAULT_OWNERSHIP_TRIGGER),
+    %% TODO: this is a temproray hack until riak_core_ring/claimant/vnode are updated
+    %%       with a better next list format for this approach
+    CopyAwaiting = fun(Txs) ->
+                           case lists:filter(fun({_, _, _, awaiting}) -> true;
+                                                (_) -> false end, Txs) of
+                               [] ->
+                                   false;
+                               _ ->
+                                   true
+                           end
+                   end,
+    ModuleComplete = fun(Txs, Mod) ->
+                             case lists:filter(fun({_, _, Completed, _}) ->
+                                                       lists:member(Mod, Completed)
+                                               end, Txs) of
+                                 [] ->
+                                     true;
+                                 _ ->
+                                     false
+                             end
+                     end,
+    Throttle = lists:sublist(Transfers, Limit),
+    Awaiting = [{Mod, Idx} || {Idx, Node, _, Txs} <- Throttle,
+                              Mod <- Mods,
+                              Node =:= node(),
+                              CopyAwaiting(Txs),
+                              ModuleComplete(Txs, Mod)],
+    [maybe_trigger_handoff(Mod, Idx, State) || {Mod, Idx} <- Awaiting],
     ok;
 trigger_ownership_handoff(Transfers, Mods, State, false) ->
     Limit = app_helper:get_env(riak_core,
@@ -532,7 +538,7 @@ trigger_ownership_handoff(Transfers, Mods, State, false) ->
                               S =:= awaiting,
                               Node =:= node(),
                               not lists:member(Mod, CMods)],
-    [maybe_trigger_handoff(Mod, Idx, Idx, State) || {Mod, Idx} <- Awaiting],
+    [maybe_trigger_handoff(Mod, Idx, State) || {Mod, Idx} <- Awaiting],
     ok.
 
 %% @private
@@ -570,12 +576,22 @@ get_forward(Mod, Idx, #state{forwarding=Fwd}) ->
             undefined
     end.
 
-%% TODO: update this logic to account for expanding ring
 check_forward(Ring, Mod, Index) ->
+    case riak_core_ring:is_changing_size(Ring) of
+        true ->
+            Target = size_change;
+        false ->
+            Target = next_owner
+    end,
+    check_forward(Ring, Mod, Index, Target).
+
+check_forward(Ring, Mod, Index, Target) ->
     Node = node(),
-    case riak_core_ring:next_owner(Ring, Index, Mod) of
-        {Node, NextOwner, complete} ->
+    case {riak_core_ring:next_owner(Ring, Index, Mod), Target} of
+        {{Node, NextOwner, complete}, next_owner} ->
             {{Mod, Index}, NextOwner};
+        {{Node, _NextOwner, complete}, size_change} ->
+            {{Mod, Index}, '$size_change'};
         _ ->
             {{Mod, Index}, undefined}
     end.
@@ -692,20 +708,15 @@ app_for_vnode_module(Mod) when is_atom(Mod) ->
         undefined -> undefined
     end.
 
-maybe_trigger_handoff(Mod, SrcIdx, TrgtIdx, State) ->
+maybe_trigger_handoff(Mod, SrcIdx, State) ->
     Pid = get_vnode(SrcIdx, Mod, State),
-    maybe_trigger_handoff(Mod, SrcIdx, TrgtIdx, Pid, State).
+    maybe_trigger_handoff(Mod, SrcIdx, Pid, State).
 
-maybe_trigger_handoff(Mod, SrcIdx, TargetIdx, Pid, #state{handoff=HO}) ->
+maybe_trigger_handoff(Mod, SrcIdx, Pid, #state{handoff=HO}) ->
     case orddict:find({Mod, SrcIdx}, HO) of
-        {ok, Targets} when is_list(Targets) ->
-            case [{TI, TN} || {TI, TN} <- Targets, TI =:= TargetIdx] of
-                [] ->
-                    ok;
-                [{TargetIdx, TargetNode}] ->
-                    riak_core_vnode:trigger_copy(Pid, {TargetIdx, TargetNode})
-            end;
-        {ok, TargetNode} when SrcIdx =:= TargetIdx -> %% hinted handoff/ownership xfer
+        {ok, Targets} when is_list(Targets) -> %% ring size change transfers
+            riak_core_vnode:trigger_copy(Pid, Targets);
+        {ok, TargetNode} -> %% hinted handoff/ownership xfer
             riak_core_vnode:trigger_handoff(Pid, TargetNode);
         error ->
             ok

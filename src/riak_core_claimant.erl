@@ -716,7 +716,8 @@ maybe_finish_size_change(Node, CState) ->
     Claimant = riak_core_ring:claimant(CState),
     case Claimant of
         Node ->
-            {true, riak_core_ring:future_ring(CState)};
+            {true,
+             riak_core_ring:increment_ring_version(node(), riak_core_ring:future_ring(CState))};
         _ ->
             {false, CState}
     end.
