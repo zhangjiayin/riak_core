@@ -144,9 +144,9 @@ start_fold(TargetNode, Module, {Type, Opts}, ParentPid, SslOpts) ->
                                       parent=ParentPid,
                                       socket=Socket,
                                       src_target={SrcPartition, TargetPartition},
-                                      stats=Stats,
+                                      stats=Stats,                                  %% JFW: has objects and bytes
                                       tcp_mod=TcpMod,
-                                      total=0}},
+                                      total=0}},                                    %% JFW: total objects
 
 
          %% IFF the vnode is using an async worker to perform the fold
@@ -154,9 +154,28 @@ start_fold(TargetNode, Module, {Type, Opts}, ParentPid, SslOpts) ->
          %% otherwise it will wait forever but vnode crash will be
          %% caught by handoff manager.  I know, this is confusing, a
          %% new handoff system will be written soon enough.
-         R = riak_core_vnode_master:sync_command({SrcPartition, SrcNode},
+
+%% JFW: We've added timing to this:
+{ElapsedTime, R} = timer:tc(fun () -> 
+         riak_core_vnode_master:sync_command({SrcPartition, SrcNode},
                                                  Req,
-                                                 VMaster, infinity),
+                                                 VMaster, infinity)
+end),
+
+%%
+%%         R = riak_core_vnode_master:sync_command({SrcPartition, SrcNode},
+%%                                                 Req,
+%%                                                 VMaster, infinity),
+
+Stats2 = R#ho_acc.stats,
+Bytes = Stats2#ho_stats.bytes,
+Objs = Stats2#ho_stats.objs,
+%% JFW: Throughput = (Bytes * 1000000) / ElapsedTime,
+ElapsedSeconds = ElapsedTime/100000,
+Throughput = Bytes / ElapsedSeconds,
+lager:info("JFW: stats output after ~p seconds (~pms): ~p bytes in ~p objects; throughput: ~p bytes/second ~n", [ElapsedSeconds, ElapsedTime, Bytes, Objs, Throughput]),
+
+
          if R == {error, vnode_shutdown} ->
                  ?log_info("because the local vnode was shutdown", []),
                  throw({be_quiet, error, local_vnode_shutdown_requested});
@@ -273,6 +292,7 @@ visit_item(K, V, Acc) ->
     case Filter(K) of
         true ->
             BinObj = Module:encode_handoff_item(K, V),
+
             M = <<?PT_MSG_OBJ:8,BinObj/binary>>,
             NumBytes = byte_size(M),
 
