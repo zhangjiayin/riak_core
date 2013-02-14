@@ -234,6 +234,7 @@ sort_by_down_fbmax(Failures) ->
 %% The ownership list a,b,c,b,a,c,b,c would compute the following adjacency
 %% list
 %%
+%% ```
 %% AL = lists:sort(adjacency_list([a,b,c,b,a,c,b])).
 %% [{{a,b},0}, <-- entry for first a
 %%  {{a,b},1}, <-- entry for second a
@@ -249,10 +250,12 @@ sort_by_down_fbmax(Failures) ->
 %%  {{c,a},1},
 %%  {{c,b},0},
 %%  {{c,b},0}]
+%% '''
 %%
 %% The adjacency matrix rolls up each of the distances int a list for
 %% each node pair
-%%
+%% 
+%% ```
 %% lists:sort(adjacency_matrix_from_al(AL)).
 %% [{{a,b},[0,1]},
 %%  {{a,c},[0,1]},
@@ -260,14 +263,17 @@ sort_by_down_fbmax(Failures) ->
 %%  {{b,c},[0,1,2]},
 %%  {{c,a},[1,1]},
 %%  {{c,b},[0,0]}]
-%%
+%% '''
+%% 
 %% Preflists with good diversity have equal counts of each distance
 %% between nodes, so the scoring measure for adjacency is the RMS
 %% of each distance, for each distance less than target N
-%%
+%% 
+%% ```
 %% riak_core_claim_util:score_am(AM, 3).
 %% 2.1818181818181817
-%%
+%% '''
+%% 
 %% Lower scores are better.
 %%
 

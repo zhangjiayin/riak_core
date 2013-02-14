@@ -329,8 +329,8 @@ sha(X) ->
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
-% @spec merkle_test() -> bool()
-% @doc A test function and example code.
+% merkle_test() -> bool()
+% A test function and example code.
 %
 % This should be changed into a proper unit test suite.
 merkle_test() ->
