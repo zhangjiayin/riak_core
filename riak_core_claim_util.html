@@ -1,0 +1,250 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module riak_core_claim_util</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module riak_core_claim_util</h1>
+<ul class="index"><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#adjacency_list-1">adjacency_list/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#adjacency_matrix-1">adjacency_matrix/1</a></td><td>Adjacency measures are useful for preflist diversity.</td></tr>
+<tr><td valign="top"><a href="#adjacency_matrix_from_al-1">adjacency_matrix_from_al/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#balance_stats-1">balance_stats/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#construct-3">construct/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#count-2">count/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#diversity_stats-2">diversity_stats/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#down_combos-2">down_combos/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#fac-1">fac/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#failure_analysis-3">failure_analysis/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#fixup_dam-2">fixup_dam/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#gen_complete_diverse-1">gen_complete_diverse/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#gen_complete_len-1">gen_complete_len/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#make_ring-1">make_ring/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#node_load-3">node_load/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#node_sensitivity-3">node_sensitivity/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#num_combs-2">num_combs/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#num_perms-2">num_perms/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#perm_gen-1">perm_gen/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#print_analysis-1">print_analysis/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#print_analysis-2">print_analysis/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#print_failure_analysis-3">print_failure_analysis/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#ring_stats-2">ring_stats/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#rms-1">rms/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#rotations-1">rotations/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#score_am-2">score_am/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#sort_by_down_fbmax-1">sort_by_down_fbmax/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#substitutions-2">substitutions/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#summarize_am-1">summarize_am/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#violation_stats-2">violation_stats/2</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="adjacency_list-1">adjacency_list/1</a></h3>
+<div class="spec">
+<p><tt>adjacency_list(Owners) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="adjacency_matrix-1">adjacency_matrix/1</a></h3>
+<div class="spec">
+<p><tt>adjacency_matrix(Owners) -&gt; any()</tt></p>
+</div><p><p>Adjacency measures are useful for preflist diversity. Three different  
+forms of measurement are used.</p>
+ 
+  <p>An adjacency list is a list of node pairs and the distance between them  
+by pointwise measuring the distance to each of the other nodes  
+taking into account wraparounds (forward distance only).</p>
+ 
+  <p>The ownership list a,b,c,b,a,c,b,c would compute the following adjacency  
+list</p>
+ 
+  <pre>  AL = lists:sort(adjacency_list([a,b,c,b,a,c,b])).
+  [{{a,b},0}, &lt;-- entry for first a
+   {{a,b},1}, &lt;-- entry for second a
+   {{a,c},0},
+   {{a,c},1},
+   {{b,a},0}, &lt;-- entry for second b
+   {{b,a},0}, &lt;-- entry for last b
+   {{b,a},2}, &lt;-- entry for first b (skipping over the second b)
+   {{b,c},0},
+   {{b,c},1},
+   {{b,c},2},
+   {{c,a},1},
+   {{c,a},1},
+   {{c,b},0},
+   {{c,b},0}]</pre>
+ 
+  <p>The adjacency matrix rolls up each of the distances int a list for  
+each node pair</p>
+ 
+  <pre>  lists:sort(adjacency_matrix_from_al(AL)).
+  [{{a,b},[0,1]},
+   {{a,c},[0,1]},
+   {{b,a},[0,0,2]},
+   {{b,c},[0,1,2]},
+   {{c,a},[1,1]},
+   {{c,b},[0,0]}]</pre>
+ 
+  <p>Preflists with good diversity have equal counts of each distance  
+between nodes, so the scoring measure for adjacency is the RMS  
+of each distance, for each distance less than target N</p>
+ 
+  <pre>  riak_core_claim_util:score_am(AM, 3).
+  2.1818181818181817</pre>
+ 
+  Lower scores are better.
+ </p>
+
+<h3 class="function"><a name="adjacency_matrix_from_al-1">adjacency_matrix_from_al/1</a></h3>
+<div class="spec">
+<p><tt>adjacency_matrix_from_al(AL) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="balance_stats-1">balance_stats/1</a></h3>
+<div class="spec">
+<p><tt>balance_stats(R) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="construct-3">construct/3</a></h3>
+<div class="spec">
+<p><tt>construct(Complete, M, NVal) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="count-2">count/2</a></h3>
+<div class="spec">
+<p><tt>count(L, NVal) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="diversity_stats-2">diversity_stats/2</a></h3>
+<div class="spec">
+<p><tt>diversity_stats(R, TN) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="down_combos-2">down_combos/2</a></h3>
+<div class="spec">
+<p><tt>down_combos(Depth, Members) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="fac-1">fac/1</a></h3>
+<div class="spec">
+<p><tt>fac(N) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="failure_analysis-3">failure_analysis/3</a></h3>
+<div class="spec">
+<p><tt>failure_analysis(R, TargetN, NumFailures) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="fixup_dam-2">fixup_dam/2</a></h3>
+<div class="spec">
+<p><tt>fixup_dam(Owners, DAM) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="gen_complete_diverse-1">gen_complete_diverse/1</a></h3>
+<div class="spec">
+<p><tt>gen_complete_diverse(RequiredDs) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="gen_complete_len-1">gen_complete_len/1</a></h3>
+<div class="spec">
+<p><tt>gen_complete_len(Len) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="make_ring-1">make_ring/1</a></h3>
+<div class="spec">
+<p><tt>make_ring(Nodes) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="node_load-3">node_load/3</a></h3>
+<div class="spec">
+<p><tt>node_load(R, NVal, DownNodes) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="node_sensitivity-3">node_sensitivity/3</a></h3>
+<div class="spec">
+<p><tt>node_sensitivity(R, NVal, Depth) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="num_combs-2">num_combs/2</a></h3>
+<div class="spec">
+<p><tt>num_combs(K, N) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="num_perms-2">num_perms/2</a></h3>
+<div class="spec">
+<p><tt>num_perms(K, N) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="perm_gen-1">perm_gen/1</a></h3>
+<div class="spec">
+<p><tt>perm_gen(L) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="print_analysis-1">print_analysis/1</a></h3>
+<div class="spec">
+<p><tt>print_analysis(LoadAnalysis) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="print_analysis-2">print_analysis/2</a></h3>
+<div class="spec">
+<p><tt>print_analysis(IoDev, LoadAnalysis) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="print_failure_analysis-3">print_failure_analysis/3</a></h3>
+<div class="spec">
+<p><tt>print_failure_analysis(R, TargetN, NumFailures) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="ring_stats-2">ring_stats/2</a></h3>
+<div class="spec">
+<p><tt>ring_stats(R, TN) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="rms-1">rms/1</a></h3>
+<div class="spec">
+<p><tt>rms(L) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="rotations-1">rotations/1</a></h3>
+<div class="spec">
+<p><tt>rotations(T) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="score_am-2">score_am/2</a></h3>
+<div class="spec">
+<p><tt>score_am(AM, NVal) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="sort_by_down_fbmax-1">sort_by_down_fbmax/1</a></h3>
+<div class="spec">
+<p><tt>sort_by_down_fbmax(Failures) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="substitutions-2">substitutions/2</a></h3>
+<div class="spec">
+<p><tt>substitutions(L, Names) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="summarize_am-1">summarize_am/1</a></h3>
+<div class="spec">
+<p><tt>summarize_am(AM) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="violation_stats-2">violation_stats/2</a></h3>
+<div class="spec">
+<p><tt>violation_stats(R, TN) -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Feb 14 2013, 15:00:15.</i></p>
+</body>
+</html>

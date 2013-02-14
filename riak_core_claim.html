@@ -1,6 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
 <title>Module riak_core_claim</title>
 <link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
 </head>
@@ -20,21 +21,40 @@
 <h2><a name="index">Function Index</a></h2>
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#choose_claim_v1-1">choose_claim_v1/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#choose_claim_v1-2">choose_claim_v1/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#choose_claim_v1-3">choose_claim_v1/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#choose_claim_v2-1">choose_claim_v2/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#choose_claim_v2-2">choose_claim_v2/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#choose_claim_v2-3">choose_claim_v2/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#choose_claim_v3-1">choose_claim_v3/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#choose_claim_v3-2">choose_claim_v3/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#choose_claim_v3-3">choose_claim_v3/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#claim-1">claim/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#claim-3">claim/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#claim_diagonal-3">claim_diagonal/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#claim_diversify-3">claim_diversify/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#claim_rebalance_n-2">claim_rebalance_n/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#claim_until_balanced-2">claim_until_balanced/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#claim_until_balanced-4">claim_until_balanced/4</a></td><td></td></tr>
 <tr><td valign="top"><a href="#default_choose_claim-1">default_choose_claim/1</a></td><td>Choose a partition at random.</td></tr>
 <tr><td valign="top"><a href="#default_choose_claim-2">default_choose_claim/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#default_choose_claim-3">default_choose_claim/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#default_wants_claim-1">default_wants_claim/1</a></td><td>Want a partition if we currently have less than floor(ringsize/nodes).</td></tr>
 <tr><td valign="top"><a href="#default_wants_claim-2">default_wants_claim/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#diagonal_stripe-2">diagonal_stripe/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#meets_target_n-2">meets_target_n/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#never_wants_claim-1">never_wants_claim/1</a></td><td>For use by nodes that should not claim any partitions.</td></tr>
+<tr><td valign="top"><a href="#never_wants_claim-2">never_wants_claim/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#random_choose_claim-1">random_choose_claim/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#random_choose_claim-2">random_choose_claim/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#random_choose_claim-3">random_choose_claim/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wants-1">wants/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#wants_claim_v1-1">wants_claim_v1/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#wants_claim_v1-2">wants_claim_v1/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#wants_claim_v2-1">wants_claim_v2/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#wants_claim_v2-2">wants_claim_v2/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wants_claim_v3-1">wants_claim_v3/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wants_claim_v3-2">wants_claim_v3/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#wants_owns_diff-2">wants_owns_diff/2</a></td><td></td></tr>
 </table>
 
 <h2><a name="functions">Function Details</a></h2>
@@ -49,6 +69,11 @@
 <p><tt>choose_claim_v1(Ring0, Node) -&gt; any()</tt></p>
 </div>
 
+<h3 class="function"><a name="choose_claim_v1-3">choose_claim_v1/3</a></h3>
+<div class="spec">
+<p><tt>choose_claim_v1(Ring0, Node, Params0) -&gt; any()</tt></p>
+</div>
+
 <h3 class="function"><a name="choose_claim_v2-1">choose_claim_v2/1</a></h3>
 <div class="spec">
 <p><tt>choose_claim_v2(Ring) -&gt; any()</tt></p>
@@ -59,9 +84,59 @@
 <p><tt>choose_claim_v2(Ring, Node) -&gt; any()</tt></p>
 </div>
 
+<h3 class="function"><a name="choose_claim_v2-3">choose_claim_v2/3</a></h3>
+<div class="spec">
+<p><tt>choose_claim_v2(Ring, Node, Params0) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="choose_claim_v3-1">choose_claim_v3/1</a></h3>
+<div class="spec">
+<p><tt>choose_claim_v3(Ring) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="choose_claim_v3-2">choose_claim_v3/2</a></h3>
+<div class="spec">
+<p><tt>choose_claim_v3(Ring, ClaimNode) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="choose_claim_v3-3">choose_claim_v3/3</a></h3>
+<div class="spec">
+<p><tt>choose_claim_v3(Ring, ClaimNode, Params) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="claim-1">claim/1</a></h3>
+<div class="spec">
+<p><tt>claim(Ring) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="claim-3">claim/3</a></h3>
+<div class="spec">
+<p><tt>claim(Ring, Want, Choose) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="claim_diagonal-3">claim_diagonal/3</a></h3>
+<div class="spec">
+<p><tt>claim_diagonal(Wants, Owners, Params) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="claim_diversify-3">claim_diversify/3</a></h3>
+<div class="spec">
+<p><tt>claim_diversify(Wants, Owners, Params) -&gt; any()</tt></p>
+</div>
+
 <h3 class="function"><a name="claim_rebalance_n-2">claim_rebalance_n/2</a></h3>
 <div class="spec">
 <p><tt>claim_rebalance_n(Ring0, Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="claim_until_balanced-2">claim_until_balanced/2</a></h3>
+<div class="spec">
+<p><tt>claim_until_balanced(Ring, Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="claim_until_balanced-4">claim_until_balanced/4</a></h3>
+<div class="spec">
+<p><tt>claim_until_balanced(Ring, Node, Want, Choose) -&gt; any()</tt></p>
 </div>
 
 <h3 class="function"><a name="default_choose_claim-1">default_choose_claim/1</a></h3>
@@ -72,6 +147,11 @@
 <h3 class="function"><a name="default_choose_claim-2">default_choose_claim/2</a></h3>
 <div class="spec">
 <p><tt>default_choose_claim(Ring, Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="default_choose_claim-3">default_choose_claim/3</a></h3>
+<div class="spec">
+<p><tt>default_choose_claim(Ring, Node, Params) -&gt; any()</tt></p>
 </div>
 
 <h3 class="function"><a name="default_wants_claim-1">default_wants_claim/1</a></h3>
@@ -99,9 +179,29 @@
 <p><tt>never_wants_claim(X1::<a href="#type-riak_core_ring">riak_core_ring()</a>) -&gt; no</tt><br></p>
 </div><p>For use by nodes that should not claim any partitions.</p>
 
+<h3 class="function"><a name="never_wants_claim-2">never_wants_claim/2</a></h3>
+<div class="spec">
+<p><tt>never_wants_claim(X1, X2) -&gt; any()</tt></p>
+</div>
+
 <h3 class="function"><a name="random_choose_claim-1">random_choose_claim/1</a></h3>
 <div class="spec">
 <p><tt>random_choose_claim(Ring) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="random_choose_claim-2">random_choose_claim/2</a></h3>
+<div class="spec">
+<p><tt>random_choose_claim(Ring, Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="random_choose_claim-3">random_choose_claim/3</a></h3>
+<div class="spec">
+<p><tt>random_choose_claim(Ring0, Node, Params) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="wants-1">wants/1</a></h3>
+<div class="spec">
+<p><tt>wants(Ring) -&gt; any()</tt></p>
 </div>
 
 <h3 class="function"><a name="wants_claim_v1-1">wants_claim_v1/1</a></h3>
@@ -123,9 +223,24 @@
 <div class="spec">
 <p><tt>wants_claim_v2(Ring, Node) -&gt; any()</tt></p>
 </div>
+
+<h3 class="function"><a name="wants_claim_v3-1">wants_claim_v3/1</a></h3>
+<div class="spec">
+<p><tt>wants_claim_v3(Ring) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="wants_claim_v3-2">wants_claim_v3/2</a></h3>
+<div class="spec">
+<p><tt>wants_claim_v3(Ring, Node) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="wants_owns_diff-2">wants_owns_diff/2</a></h3>
+<div class="spec">
+<p><tt>wants_owns_diff(Wants, Owns) -&gt; any()</tt></p>
+</div>
 <hr>
 
 <div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
-<p><i>Generated by EDoc, Apr 27 2012, 16:05:07.</i></p>
+<p><i>Generated by EDoc, Feb 14 2013, 15:00:15.</i></p>
 </body>
 </html>

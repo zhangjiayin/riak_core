@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module riak_core_capability</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module riak_core_capability</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>  
+This module implements a cluster capability system that tracks the modes  
+supported by different nodes in the cluster and automatically determines  
+the most preferred mode for each capability that is supported by all nodes.
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+
+<h2><a name="description">Description</a></h2><p>  
+This module implements a cluster capability system that tracks the modes  
+supported by different nodes in the cluster and automatically determines  
+the most preferred mode for each capability that is supported by all nodes.  
+The primary use of this system is to support seamless transitions between  
+different node versions during a rolling upgrade -- such as speaking an  
+old protocol while the cluster still contains older nodes, and then  
+switching to a newer protocol after all nodes have been upgraded.</p>
+ 
+  <p>The capability system exposes a simple <code>register</code> and <code>get</code> API, that  
+allows applications to register a given capability and set of supported  
+modes, and then retrieve the current mode that has been safely negotiated  
+across the cluster. The system also allows overriding negotiation through  
+application environment variables (eg. in app.config).</p>
+ 
+  <p>To register a capability and set of supported modes:
+    Use <a href="#register-3"><code>register/3</code></a> or <a href="#register-4"><code>register/4</code></a></p>
+ 
+  <p>To query the current negotiated capability:
+    Use <a href="#get-1"><code>get/1</code></a> or <a href="#get-2"><code>get/2</code></a></p>
+ 
+  <p>The capability system implements implicit mode preference. When registering  
+modes, the modes listed earlier in the list are preferred over modes listed  
+later in the list.</p>
+ 
+  <p>Users can override capabilities by setting the <code>override_capability</code> app
+  variable for the appropriate application. For example, to override the
+  <code>{riak_core, vnode_routing}</code> capability, the user could add the following
+  to <code>riak_core</code> section of <code>app.config</code>:</p>
+ 
+  <p>{override_capability,    
+[{vnode_routing,      
+[{use, some_mode},       
+{prefer, some_other_mode}]    
+}]  
+}</p>
+ 
+  <p>The two override parameters are <code>use</code> and <code>prefer</code>. The <code>use</code> parameter
+  specifies a mode that will always be used for the given capability,
+  ignoring negotiation. It is a forced override. The <code>prefer</code> parameter
+  specifies a mode that will be used if safe across the entire cluster.
+  This overrides the built-in mode preference, but still only selects the
+  mode if safe. When both <code>use</code> and <code>prefer</code> are specified, <code>use</code> takes  
+precedence.</p>
+ 
+  There is no inherent upgrading/downgrading of protocols in this system.
+  The system is designed with the assumption that all supported modes can
+  be used at any time (even concurrently), and is concerned solely with
+  selecting the most preferred mode common across the cluster at a given
+  point in time.
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#all-0">all/0</a></td><td>Return a list of all negotiated capabilities.</td></tr>
+<tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get-1">get/1</a></td><td>Query the current negotiated mode for a given capability, throwing an
+       exception if the capability is unknown or the capability system is
+       unavailable.</td></tr>
+<tr><td valign="top"><a href="#get-2">get/2</a></td><td>Query the current negotiated mode for a given capability, returning
+       <code>Default</code> if the capability system is unavailable.</td></tr>
+<tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#register-3">register/3</a></td><td>Register a new capability providing a list of supported modes as well
+  as the default value.</td></tr>
+<tr><td valign="top"><a href="#register-4">register/4</a></td><td>Register a new capability providing a list of supported modes, the
+  default mode, and an optional mapping of how a legacy application variable
+  maps to different modes.</td></tr>
+<tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#update_ring-1">update_ring/1</a></td><td>Add the local node's supported capabilities to the given
+  ring.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="all-0">all/0</a></h3>
+<div class="spec">
+<p><tt>all() -&gt; any()</tt></p>
+</div><p>Return a list of all negotiated capabilities</p>
+
+<h3 class="function"><a name="code_change-3">code_change/3</a></h3>
+<div class="spec">
+<p><tt>code_change(OldVsn, State, Extra) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="get-1">get/1</a></h3>
+<div class="spec">
+<p><tt>get(Capability) -&gt; any()</tt></p>
+</div><p>Query the current negotiated mode for a given capability, throwing an
+       exception if the capability is unknown or the capability system is
+       unavailable.</p>
+
+<h3 class="function"><a name="get-2">get/2</a></h3>
+<div class="spec">
+<p><tt>get(Capability, Default) -&gt; any()</tt></p>
+</div><p>Query the current negotiated mode for a given capability, returning
+       <code>Default</code> if the capability system is unavailable.</p>
+
+<h3 class="function"><a name="handle_call-3">handle_call/3</a></h3>
+<div class="spec">
+<p><tt>handle_call(X1, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_cast-2">handle_cast/2</a></h3>
+<div class="spec">
+<p><tt>handle_cast(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_info-2">handle_info/2</a></h3>
+<div class="spec">
+<p><tt>handle_info(Info, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="init-1">init/1</a></h3>
+<div class="spec">
+<p><tt>init(X1) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="register-3">register/3</a></h3>
+<div class="spec">
+<p><tt>register(Capability, Supported, Default) -&gt; any()</tt></p>
+</div><p>Register a new capability providing a list of supported modes as well
+  as the default value. The order of modes in <code>Supported</code> determines the mode
+  preference -- modes listed earlier are more preferred.</p>
+
+<h3 class="function"><a name="register-4">register/4</a></h3>
+<div class="spec">
+<p><tt>register(Capability, Supported, Default, LegacyVar) -&gt; any()</tt></p>
+</div><p>Register a new capability providing a list of supported modes, the
+  default mode, and an optional mapping of how a legacy application variable
+  maps to different modes. The order of modes in <code>Supported</code> determines the
+  mode preference -- modes listed earlier are more preferred.</p>
+
+<h3 class="function"><a name="start_link-0">start_link/0</a></h3>
+<div class="spec">
+<p><tt>start_link() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="terminate-2">terminate/2</a></h3>
+<div class="spec">
+<p><tt>terminate(Reason, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="update_ring-1">update_ring/1</a></h3>
+<div class="spec">
+<p><tt>update_ring(Ring) -&gt; any()</tt></p>
+</div><p>Add the local node's supported capabilities to the given
+  ring. Currently used during the <code>riak-admin join</code> process</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Feb 14 2013, 15:00:15.</i></p>
+</body>
+</html>

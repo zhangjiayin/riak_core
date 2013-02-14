@@ -1,0 +1,113 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module riak_core_dtrace</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module riak_core_dtrace</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Erlang-triggerable DTrace probe support.
+
+
+<h2><a name="description">Description</a></h2><p>Erlang-triggerable DTrace probe support</p>
+ 
+  <p>In an ideal world, this module would live in a repo that would be
+  easily sharable across multiple Basho projects.  The tricky bit for
+  this would be trying to make generic the
+  <code>application:get_env(riak_core, dtrace_support)</code> call that's
+  currently in the <code>riak_kv_dtrace:dtrace/1</code> function.  But we'll  
+wait for another day, I think.</p>
+ 
+  <p>The purpose of this module is to reduce the overhead of DTrace (and  
+SystemTap) probes when those probes are: 1. not supported by the VM,  
+or 2. disabled by application configuration.  #1 is the bigger  
+problem: a single call to the code loader can take several  
+milliseconds.  #2 is useful in the case that we want to try to reduce  
+the overhead of adding these probes even further by avoiding the NIF  
+call entirely.</p>
+ 
+  <p>SLF's MacBook Pro tests</p>
+ 
+  <p>without cover, with R14B04 + DTrace:</p>
+ 
+  <p>timeit_naive                 average  2236.306 usec/call over     500.0 calls  
+timeit_mochiglobal           average     0.509 usec/call over  225000.0 calls  
+timeit_best OFF (fastest)    average     0.051 usec/call over  225000.0 calls  
+timeit_best ON -init         average     1.027 usec/call over  225000.0 calls  
+timeit_best ON +init         average     0.202 usec/call over  225000.0 calls</p>
+ 
+  <p>with cover, with R14B04 + DTrace:</p>
+ 
+  timeit_naive                 average  2286.202 usec/call over     500.0 calls
+  timeit_mochiglobal           average     1.255 usec/call over  225000.0 calls
+  timeit_best OFF (fastest)    average     1.162 usec/call over  225000.0 calls
+  timeit_best ON -init         average     2.207 usec/call over  225000.0 calls
+  timeit_best ON +init         average     1.303 usec/call over  225000.0 calls
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#dtrace-1">dtrace/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#dtrace-3">dtrace/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#dtrace-4">dtrace/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#dtrace-6">dtrace/6</a></td><td></td></tr>
+<tr><td valign="top"><a href="#enabled-0">enabled/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#put_tag-1">put_tag/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#timeit0-1">timeit0/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#timeit_best-1">timeit_best/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#timeit_mg-1">timeit_mg/1</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="dtrace-1">dtrace/1</a></h3>
+<div class="spec">
+<p><tt>dtrace(ArgList) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="dtrace-3">dtrace/3</a></h3>
+<div class="spec">
+<p><tt>dtrace(Int0, Ints, Strings) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="dtrace-4">dtrace/4</a></h3>
+<div class="spec">
+<p><tt>dtrace(Int0, Ints, String0, Strings) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="dtrace-6">dtrace/6</a></h3>
+<div class="spec">
+<p><tt>dtrace(Int0, Int1, Ints, String0, String1, Strings) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="enabled-0">enabled/0</a></h3>
+<div class="spec">
+<p><tt>enabled() -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="put_tag-1">put_tag/1</a></h3>
+<div class="spec">
+<p><tt>put_tag(Tag) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="timeit0-1">timeit0/1</a></h3>
+<div class="spec">
+<p><tt>timeit0(ArgList) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="timeit_best-1">timeit_best/1</a></h3>
+<div class="spec">
+<p><tt>timeit_best(ArgList) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="timeit_mg-1">timeit_mg/1</a></h3>
+<div class="spec">
+<p><tt>timeit_mg(ArgList) -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Feb 14 2013, 15:00:14.</i></p>
+</body>
+</html>

@@ -1,6 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
 <title>Module riak_core_ring</title>
 <link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
 </head>
@@ -24,7 +25,7 @@
 
 
 <h3 class="typedecl"><a name="type-member_status">member_status()</a></h3>
-<p><tt>member_status() = valid | invalid | leaving | exiting</tt></p>
+<p><tt>member_status() = joining | valid | invalid | leaving | exiting | down</tt></p>
 
 
 <h3 class="typedecl"><a name="type-pending_change">pending_change()</a></h3>
@@ -42,10 +43,13 @@
 <tr><td valign="top"><a href="#all_members-1">all_members/1</a></td><td>Produce a list of all nodes that are members of the cluster.</td></tr>
 <tr><td valign="top"><a href="#all_owners-1">all_owners/1</a></td><td>Provide all ownership information in the form of {Index,Node} pairs.</td></tr>
 <tr><td valign="top"><a href="#all_preflists-2">all_preflists/2</a></td><td>Provide every preflist in the ring, truncated at N.</td></tr>
+<tr><td valign="top"><a href="#cancel_transfers-1">cancel_transfers/1</a></td><td>Return a ring with all transfers cancelled - for claim sim.</td></tr>
+<tr><td valign="top"><a href="#chash-1">chash/1</a></td><td>Return the <code>CHash</code> of the ring.</td></tr>
 <tr><td valign="top"><a href="#check_tainted-2">check_tainted/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#claimant-1">claimant/1</a></td><td>Return the current claimant.</td></tr>
 <tr><td valign="top"><a href="#claiming_members-1">claiming_members/1</a></td><td>Return a list of all members of the cluster that are eligible to
        claim partitions.</td></tr>
+<tr><td valign="top"><a href="#clear_member_meta-3">clear_member_meta/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#cluster_name-1">cluster_name/1</a></td><td>Returns the unique identifer for this cluster.</td></tr>
 <tr><td valign="top"><a href="#diff_nodes-2">diff_nodes/2</a></td><td>For two rings, return the list of owners that have differing ownership.</td></tr>
 <tr><td valign="top"><a href="#disowning_indices-2">disowning_indices/2</a></td><td>Return all indices that a node is scheduled to give to another.</td></tr>
@@ -59,10 +63,14 @@
 <tr><td valign="top"><a href="#fresh-2">fresh/2</a></td><td>Equivalent to fresh/1 but allows specification of the ring size.</td></tr>
 <tr><td valign="top"><a href="#future_indices-2">future_indices/2</a></td><td>Return all partition indices that will be owned by a node after all
        pending ownership transfers have completed.</td></tr>
+<tr><td valign="top"><a href="#future_ring-1">future_ring/1</a></td><td>Return the ring that will exist after all pending ownership transfers
+       have completed.</td></tr>
 <tr><td valign="top"><a href="#get_buckets-1">get_buckets/1</a></td><td>return the names of all the custom buckets stored in the ring.</td></tr>
 <tr><td valign="top"><a href="#get_member_meta-3">get_member_meta/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#get_meta-2">get_meta/2</a></td><td>Return a value from the cluster metadata dict.</td></tr>
 <tr><td valign="top"><a href="#handoff_complete-3">handoff_complete/3</a></td><td>Marks a pending transfer as completed.</td></tr>
+<tr><td valign="top"><a href="#increment_ring_version-2">increment_ring_version/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#increment_vclock-2">increment_vclock/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#index_owner-2">index_owner/2</a></td><td>Return the node that owns the given index.</td></tr>
 <tr><td valign="top"><a href="#indices-2">indices/2</a></td><td>Return all partition indices owned by a node.</td></tr>
 <tr><td valign="top"><a href="#is_primary-2">is_primary/2</a></td><td>Determine if a given Index/Node <code>IdxNode</code> combination is a
@@ -71,6 +79,7 @@
 <tr><td valign="top"><a href="#legacy_reconcile-2">legacy_reconcile/2</a></td><td>Incorporate another node's state into our view of the Riak world.</td></tr>
 <tr><td valign="top"><a href="#legacy_ring-1">legacy_ring/1</a></td><td>Returns true if the given ring is a legacy ring.</td></tr>
 <tr><td valign="top"><a href="#member_status-2">member_status/2</a></td><td>Returns the current membership status for a node in the cluster.</td></tr>
+<tr><td valign="top"><a href="#members-2">members/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#my_indices-1">my_indices/1</a></td><td>Return all partition indices owned by the node executing this function.</td></tr>
 <tr><td valign="top"><a href="#nearly_equal-2">nearly_equal/2</a></td><td>Verify that the two rings are identical expect that metadata can
        differ and RingB's vclock is allowed to be equal or a direct
@@ -92,6 +101,7 @@
 <tr><td valign="top"><a href="#reconcile-2">reconcile/2</a></td><td>Incorporate another node's state into our view of the Riak world.</td></tr>
 <tr><td valign="top"><a href="#reconcile_names-2">reconcile_names/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#remove_member-3">remove_member/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#remove_meta-2">remove_meta/2</a></td><td>Logical delete of a key in the cluster metadata dict.</td></tr>
 <tr><td valign="top"><a href="#rename_node-3">rename_node/3</a></td><td> Rename OldNode to NewNode in a Riak ring.</td></tr>
 <tr><td valign="top"><a href="#responsible_index-2">responsible_index/2</a></td><td>Determine the integer ring index responsible
        for a chash key.</td></tr>
@@ -99,8 +109,13 @@
 <tr><td valign="top"><a href="#ring_ready-0">ring_ready/0</a></td><td></td></tr>
 <tr><td valign="top"><a href="#ring_ready-1">ring_ready/1</a></td><td>Returns true if all cluster members have seen the current ring.</td></tr>
 <tr><td valign="top"><a href="#ring_ready_info-1">ring_ready_info/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#ring_version-1">ring_version/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set_claimant-2">set_claimant/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#set_cluster_name-2">set_cluster_name/2</a></td><td>Sets the unique identifer for this cluster.</td></tr>
+<tr><td valign="top"><a href="#set_member-4">set_member/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set_member-5">set_member/5</a></td><td></td></tr>
 <tr><td valign="top"><a href="#set_owner-2">set_owner/2</a></td><td>Set the node that is responsible for a given chstate.</td></tr>
+<tr><td valign="top"><a href="#set_pending_changes-2">set_pending_changes/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#set_tainted-1">set_tainted/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#transfer_node-3">transfer_node/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#update_member_meta-5">update_member_meta/5</a></td><td>Set a key in the member metadata orddict.</td></tr>
@@ -140,6 +155,16 @@
 <p><tt>all_preflists(State::<a href="#type-chstate">chstate()</a>, N::integer()) -&gt; [[{Index::integer(), Node::term()}]]</tt><br></p>
 </div><p>Provide every preflist in the ring, truncated at N.</p>
 
+<h3 class="function"><a name="cancel_transfers-1">cancel_transfers/1</a></h3>
+<div class="spec">
+<p><tt>cancel_transfers(Ring) -&gt; any()</tt></p>
+</div><p>Return a ring with all transfers cancelled - for claim sim</p>
+
+<h3 class="function"><a name="chash-1">chash/1</a></h3>
+<div class="spec">
+<p><tt>chash(Chstate_v2::<a href="#type-chstate">chstate()</a>) -&gt; CHash::<a href="chash.html#type-chash">chash:chash()</a></tt><br></p>
+</div><p>Return the <code>CHash</code> of the ring.</p>
+
 <h3 class="function"><a name="check_tainted-2">check_tainted/2</a></h3>
 <div class="spec">
 <p><tt>check_tainted(Chstate, Msg) -&gt; any()</tt></p>
@@ -155,6 +180,11 @@
 <p><tt>claiming_members(State::<a href="#type-chstate">chstate()</a>) -&gt; [Node::node()]</tt><br></p>
 </div><p>Return a list of all members of the cluster that are eligible to
        claim partitions.</p>
+
+<h3 class="function"><a name="clear_member_meta-3">clear_member_meta/3</a></h3>
+<div class="spec">
+<p><tt>clear_member_meta(Node, State, Member) -&gt; any()</tt></p>
+</div>
 
 <h3 class="function"><a name="cluster_name-1">cluster_name/1</a></h3>
 <div class="spec">
@@ -219,6 +249,12 @@
 </div><p>Return all partition indices that will be owned by a node after all
        pending ownership transfers have completed.</p>
 
+<h3 class="function"><a name="future_ring-1">future_ring/1</a></h3>
+<div class="spec">
+<p><tt>future_ring(State) -&gt; any()</tt></p>
+</div><p>Return the ring that will exist after all pending ownership transfers
+       have completed.</p>
+
 <h3 class="function"><a name="get_buckets-1">get_buckets/1</a></h3>
 <div class="spec">
 <p><tt>get_buckets(State::<a href="#type-chstate">chstate()</a>) -&gt; [term()]</tt><br></p>
@@ -238,6 +274,16 @@
 <div class="spec">
 <p><tt>handoff_complete(State::<a href="#type-chstate">chstate()</a>, Idx::integer(), Mod::module()) -&gt; <a href="#type-chstate">chstate()</a></tt><br></p>
 </div><p>Marks a pending transfer as completed.</p>
+
+<h3 class="function"><a name="increment_ring_version-2">increment_ring_version/2</a></h3>
+<div class="spec">
+<p><tt>increment_ring_version(Node, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="increment_vclock-2">increment_vclock/2</a></h3>
+<div class="spec">
+<p><tt>increment_vclock(Node, State) -&gt; any()</tt></p>
+</div>
 
 <h3 class="function"><a name="index_owner-2">index_owner/2</a></h3>
 <div class="spec">
@@ -272,8 +318,13 @@
 
 <h3 class="function"><a name="member_status-2">member_status/2</a></h3>
 <div class="spec">
-<p><tt>member_status(State::<a href="#type-chstate">chstate()</a>, Node::node()) -&gt; <a href="#type-member_status">member_status()</a></tt><br></p>
+<p><tt>member_status(Chstate_v2::<a href="#type-chstate">chstate()</a> | [node()], Node::node()) -&gt; <a href="#type-member_status">member_status()</a></tt><br></p>
 </div><p>Returns the current membership status for a node in the cluster.</p>
+
+<h3 class="function"><a name="members-2">members/2</a></h3>
+<div class="spec">
+<p><tt>members(Chstate_v2, Types) -&gt; any()</tt></p>
+</div>
 
 <h3 class="function"><a name="my_indices-1">my_indices/1</a></h3>
 <div class="spec">
@@ -370,6 +421,11 @@
 <p><tt>remove_member(PNode, State, Node) -&gt; any()</tt></p>
 </div>
 
+<h3 class="function"><a name="remove_meta-2">remove_meta/2</a></h3>
+<div class="spec">
+<p><tt>remove_meta(Key::term(), State::<a href="#type-chstate">chstate()</a>) -&gt; <a href="#type-chstate">chstate()</a></tt><br></p>
+</div><p>Logical delete of a key in the cluster metadata dict</p>
+
 <h3 class="function"><a name="rename_node-3">rename_node/3</a></h3>
 <div class="spec">
 <p><tt>rename_node(State::<a href="#type-chstate">chstate()</a>, OldNode::atom(), NewNode::atom()) -&gt; <a href="#type-chstate">chstate()</a></tt><br></p>
@@ -401,15 +457,40 @@
 <p><tt>ring_ready_info(State0) -&gt; any()</tt></p>
 </div>
 
+<h3 class="function"><a name="ring_version-1">ring_version/1</a></h3>
+<div class="spec">
+<p><tt>ring_version(Chstate_v2) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="set_claimant-2">set_claimant/2</a></h3>
+<div class="spec">
+<p><tt>set_claimant(State, Claimant) -&gt; any()</tt></p>
+</div>
+
 <h3 class="function"><a name="set_cluster_name-2">set_cluster_name/2</a></h3>
 <div class="spec">
 <p><tt>set_cluster_name(State, Name) -&gt; any()</tt></p>
 </div><p>Sets the unique identifer for this cluster.</p>
 
+<h3 class="function"><a name="set_member-4">set_member/4</a></h3>
+<div class="spec">
+<p><tt>set_member(Node, CState, Member, Status) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="set_member-5">set_member/5</a></h3>
+<div class="spec">
+<p><tt>set_member(Node, CState, Member, Status, X5) -&gt; any()</tt></p>
+</div>
+
 <h3 class="function"><a name="set_owner-2">set_owner/2</a></h3>
 <div class="spec">
 <p><tt>set_owner(State::<a href="#type-chstate">chstate()</a>, Node::node()) -&gt; <a href="#type-chstate">chstate()</a></tt><br></p>
 </div><p>Set the node that is responsible for a given chstate.</p>
+
+<h3 class="function"><a name="set_pending_changes-2">set_pending_changes/2</a></h3>
+<div class="spec">
+<p><tt>set_pending_changes(State, Transfers) -&gt; any()</tt></p>
+</div>
 
 <h3 class="function"><a name="set_tainted-1">set_tainted/1</a></h3>
 <div class="spec">
@@ -438,6 +519,6 @@
 <hr>
 
 <div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
-<p><i>Generated by EDoc, Apr 27 2012, 16:05:07.</i></p>
+<p><i>Generated by EDoc, Feb 14 2013, 15:00:14.</i></p>
 </body>
 </html>

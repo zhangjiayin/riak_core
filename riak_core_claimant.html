@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module riak_core_claimant</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module riak_core_claimant</h1>
+<ul class="index"><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+
+<p><b>Behaviours:</b> <a href="gen_server.html"><tt>gen_server</tt></a>.</p>
+
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-action">action()</a></h3>
+<p><tt>action() = leave | remove | {replace, node()} | {force_replace, node()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-riak_core_ring">riak_core_ring()</a></h3>
+<p><tt>riak_core_ring() = <a href="riak_core_ring.html#type-riak_core_ring">riak_core_ring:riak_core_ring()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-ring_transition">ring_transition()</a></h3>
+<p><tt>ring_transition() = {<a href="#type-riak_core_ring">riak_core_ring()</a>, <a href="#type-riak_core_ring">riak_core_ring()</a>}</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#clear-0">clear/0</a></td><td>Clear the current set of staged transfers.</td></tr>
+<tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#commit-0">commit/0</a></td><td>Commit the set of staged cluster changes, returning true on success.</td></tr>
+<tr><td valign="top"><a href="#force_replace-2">force_replace/2</a></td><td>Stage a request for <code>Node</code> to be forcefully replaced by <code>NewNode</code>.</td></tr>
+<tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#leave_member-1">leave_member/1</a></td><td>Stage a request for <code>Node</code> to leave the cluster.</td></tr>
+<tr><td valign="top"><a href="#plan-0">plan/0</a></td><td>Determine how the cluster will be affected by the staged changes,
+       returning the set of pending changes as well as a list of ring
+       modifications that correspond to each resulting cluster transition
+       (eg.</td></tr>
+<tr><td valign="top"><a href="#reassign_indices-1">reassign_indices/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#remove_member-1">remove_member/1</a></td><td>Stage a request for <code>Node</code> to be forcefully removed from the cluster.</td></tr>
+<tr><td valign="top"><a href="#replace-2">replace/2</a></td><td>Stage a request for <code>Node</code> to be replaced by <code>NewNode</code>.</td></tr>
+<tr><td valign="top"><a href="#ring_changed-2">ring_changed/2</a></td><td>This function is called as part of the ring reconciliation logic
+       triggered by the gossip subsystem.</td></tr>
+<tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td>Spawn and register the riak_core_claimant server.</td></tr>
+<tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="clear-0">clear/0</a></h3>
+<div class="spec">
+<p><tt>clear() -&gt; any()</tt></p>
+</div><p>Clear the current set of staged transfers</p>
+
+<h3 class="function"><a name="code_change-3">code_change/3</a></h3>
+<div class="spec">
+<p><tt>code_change(OldVsn, State, Extra) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="commit-0">commit/0</a></h3>
+<div class="spec">
+<p><tt>commit() -&gt; ok | {error, term()}</tt><br></p>
+</div><p>Commit the set of staged cluster changes, returning true on success.
+       A commit is only allowed to succeed if the ring is ready and if the
+       current set of changes matches those computed by the most recent
+       call to plan/0.</p>
+
+<h3 class="function"><a name="force_replace-2">force_replace/2</a></h3>
+<div class="spec">
+<p><tt>force_replace(Node, NewNode) -&gt; any()</tt></p>
+</div><p>Stage a request for <code>Node</code> to be forcefully replaced by <code>NewNode</code>.
+       If committed, all partitions owned by <code>Node</code> will immediately be
+       re-assigned to <code>NewNode</code>. No data on <code>Node</code> will be transfered,
+       and all replicas on <code>Node</code> will be lost. The current implementation
+       requires <code>NewNode</code> to be a fresh node that is joining the cluster
+       and does not yet own any partitions of its own.</p>
+
+<h3 class="function"><a name="handle_call-3">handle_call/3</a></h3>
+<div class="spec">
+<p><tt>handle_call(Request, From, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_cast-2">handle_cast/2</a></h3>
+<div class="spec">
+<p><tt>handle_cast(Msg, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="handle_info-2">handle_info/2</a></h3>
+<div class="spec">
+<p><tt>handle_info(Info, State) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="init-1">init/1</a></h3>
+<div class="spec">
+<p><tt>init(X1) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="leave_member-1">leave_member/1</a></h3>
+<div class="spec">
+<p><tt>leave_member(Node) -&gt; any()</tt></p>
+</div><p>Stage a request for <code>Node</code> to leave the cluster. If committed, <code>Node</code>
+       will handoff all of its data to other nodes in the cluster and then
+       shutdown.</p>
+
+<h3 class="function"><a name="plan-0">plan/0</a></h3>
+<div class="spec">
+<p><tt>plan() -&gt; {error, term()} | {ok, [<a href="#type-action">action()</a>], [<a href="#type-ring_transition">ring_transition()</a>]}</tt><br></p>
+</div><p>Determine how the cluster will be affected by the staged changes,
+       returning the set of pending changes as well as a list of ring
+       modifications that correspond to each resulting cluster transition
+       (eg. the initial transition that applies the staged changes, and
+       any additional transitions triggered by later rebalancing).</p>
+
+<h3 class="function"><a name="reassign_indices-1">reassign_indices/1</a></h3>
+<div class="spec">
+<p><tt>reassign_indices(CState) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="remove_member-1">remove_member/1</a></h3>
+<div class="spec">
+<p><tt>remove_member(Node) -&gt; any()</tt></p>
+</div><p>Stage a request for <code>Node</code> to be forcefully removed from the cluster.
+       If committed, all partitions owned by <code>Node</code> will immediately be
+       re-assigned to other nodes. No data on <code>Node</code> will be transfered to
+       other nodes, and all replicas on <code>Node</code> will be lost.</p>
+
+<h3 class="function"><a name="replace-2">replace/2</a></h3>
+<div class="spec">
+<p><tt>replace(Node, NewNode) -&gt; any()</tt></p>
+</div><p>Stage a request for <code>Node</code> to be replaced by <code>NewNode</code>. If committed,
+       <code>Node</code> will handoff all of its data to <code>NewNode</code> and then shutdown.
+       The current implementation requires <code>NewNode</code> to be a fresh node that
+       is joining the cluster and does not yet own any partitions of its own.</p>
+
+<h3 class="function"><a name="ring_changed-2">ring_changed/2</a></h3>
+<div class="spec">
+<p><tt>ring_changed(Node, Ring) -&gt; any()</tt></p>
+</div><p>This function is called as part of the ring reconciliation logic
+       triggered by the gossip subsystem. This is only called on the one
+       node that is currently the claimant. This function is the top-level
+       entry point to the claimant logic that orchestrates cluster state
+       transitions. The current code path:
+           riak_core_gossip:reconcile/2
+           --&gt; riak_core_ring:ring_changed/2
+           -----&gt; riak_core_ring:internal_ring_changed/2
+           --------&gt; riak_core_claimant:ring_changed/2</p>
+
+<h3 class="function"><a name="start_link-0">start_link/0</a></h3>
+<div class="spec">
+<p><tt>start_link() -&gt; any()</tt></p>
+</div><p>Spawn and register the riak_core_claimant server</p>
+
+<h3 class="function"><a name="terminate-2">terminate/2</a></h3>
+<div class="spec">
+<p><tt>terminate(Reason, State) -&gt; any()</tt></p>
+</div>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Feb 14 2013, 15:00:15.</i></p>
+</body>
+</html>

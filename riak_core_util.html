@@ -1,6 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
 <title>Module riak_core_util</title>
 <link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
 </head>
@@ -36,8 +37,22 @@
 <tr><td valign="top"><a href="#make_tmp_dir-0">make_tmp_dir/0</a></td><td>Create a unique directory in /tmp.</td></tr>
 <tr><td valign="top"><a href="#mkclientid-1">mkclientid/1</a></td><td>Create a unique-enough id for vclock clients.</td></tr>
 <tr><td valign="top"><a href="#moment-0">moment/0</a></td><td>Get the current "moment".</td></tr>
+<tr><td valign="top"><a href="#multi_rpc-4">multi_rpc/4</a></td><td>Perform an RPC call to a list of nodes in parallel, returning the
+       results in the same order as the input list.</td></tr>
+<tr><td valign="top"><a href="#multi_rpc-5">multi_rpc/5</a></td><td>Perform an RPC call to a list of nodes in parallel, returning the
+       results in the same order as the input list.</td></tr>
+<tr><td valign="top"><a href="#multi_rpc_ann-4">multi_rpc_ann/4</a></td><td>Perform an RPC call to a list of nodes in parallel, returning the
+       results in the same order as the input list.</td></tr>
+<tr><td valign="top"><a href="#multi_rpc_ann-5">multi_rpc_ann/5</a></td><td>Perform an RPC call to a list of nodes in parallel, returning the
+       results in the same order as the input list.</td></tr>
+<tr><td valign="top"><a href="#multicall_ann-4">multicall_ann/4</a></td><td>Similar to <a href="rpc.html#multicall-4"><code>rpc:multicall/4</code></a>.</td></tr>
+<tr><td valign="top"><a href="#multicall_ann-5">multicall_ann/5</a></td><td>Similar to <a href="rpc.html#multicall-6"><code>rpc:multicall/6</code></a>.</td></tr>
+<tr><td valign="top"><a href="#orddict_delta-2">orddict_delta/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#pmap-2">pmap/2</a></td><td>Invoke function <code>F</code> over each element of list <code>L</code> in parallel,
+       returning the results in the same order as the input list.</td></tr>
 <tr><td valign="top"><a href="#reload_all-1">reload_all/1</a></td><td>Ask each member node of the riak ring to reload the given
        Module.</td></tr>
+<tr><td valign="top"><a href="#replace_file-2">replace_file/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#rpc_every_member-4">rpc_every_member/4</a></td><td>Make an RPC call to the given module and function on each
        member of the cluster.</td></tr>
 <tr><td valign="top"><a href="#rpc_every_member_ann-4">rpc_every_member_ann/4</a></td><td>Same as rpc_every_member/4, but annotate the result set with
@@ -110,12 +125,72 @@
        number of seconds from year 0 to now, universal time, in
        the gregorian calendar.</p>
 
+<h3 class="function"><a name="multi_rpc-4">multi_rpc/4</a></h3>
+<div class="spec">
+<p><tt>multi_rpc(Nodes::[node()], Mod::module(), Fun::function(), Args::[any()]) -&gt; [any()]</tt><br></p>
+</div><p>Perform an RPC call to a list of nodes in parallel, returning the
+       results in the same order as the input list.</p>
+
+<h3 class="function"><a name="multi_rpc-5">multi_rpc/5</a></h3>
+<div class="spec">
+<p><tt>multi_rpc(Nodes::[node()], Mod::module(), Fun::function(), Args::[any()], Timeout::timeout()) -&gt; [any()]</tt><br></p>
+</div><p>Perform an RPC call to a list of nodes in parallel, returning the
+       results in the same order as the input list.</p>
+
+<h3 class="function"><a name="multi_rpc_ann-4">multi_rpc_ann/4</a></h3>
+<div class="spec">
+<p><tt>multi_rpc_ann(Nodes::[node()], Mod::module(), Fun::function(), Args::[any()]) -&gt; [{node(), any()}]</tt><br></p>
+</div><p>Perform an RPC call to a list of nodes in parallel, returning the
+       results in the same order as the input list. Each result is tagged
+       with the corresponding node name.</p>
+
+<h3 class="function"><a name="multi_rpc_ann-5">multi_rpc_ann/5</a></h3>
+<div class="spec">
+<p><tt>multi_rpc_ann(Nodes::[node()], Mod::module(), Fun::function(), Args::[any()], Timeout::timeout()) -&gt; [{node(), any()}]</tt><br></p>
+</div><p>Perform an RPC call to a list of nodes in parallel, returning the
+       results in the same order as the input list. Each result is tagged
+       with the corresponding node name.</p>
+
+<h3 class="function"><a name="multicall_ann-4">multicall_ann/4</a></h3>
+<div class="spec">
+<p><tt>multicall_ann(Nodes::[node()], Mod::module(), Fun::function(), Args::[any()]) -&gt; {Results::[{node(), any()}], Down::[node()]}</tt><br></p>
+</div><p>Similar to <a href="rpc.html#multicall-4"><code>rpc:multicall/4</code></a>. Performs an RPC call to a list
+       of nodes in parallel, returning a list of results as well as a list
+       of nodes that are down/unreachable. The results will be returned in
+       the same order as the input list, and each result is tagged with the
+       corresponding node name.</p>
+
+<h3 class="function"><a name="multicall_ann-5">multicall_ann/5</a></h3>
+<div class="spec">
+<p><tt>multicall_ann(Nodes::[node()], Mod::module(), Fun::function(), Args::[any()], Timeout::timeout()) -&gt; {Results::[{node(), any()}], Down::[node()]}</tt><br></p>
+</div><p>Similar to <a href="rpc.html#multicall-6"><code>rpc:multicall/6</code></a>. Performs an RPC call to a list
+       of nodes in parallel, returning a list of results as well as a list
+       of nodes that are down/unreachable. The results will be returned in
+       the same order as the input list, and each result is tagged with the
+       corresponding node name.</p>
+
+<h3 class="function"><a name="orddict_delta-2">orddict_delta/2</a></h3>
+<div class="spec">
+<p><tt>orddict_delta(A, B) -&gt; any()</tt></p>
+</div>
+
+<h3 class="function"><a name="pmap-2">pmap/2</a></h3>
+<div class="spec">
+<p><tt>pmap(F::function(), L::[node()]) -&gt; [any()]</tt><br></p>
+</div><p>Invoke function <code>F</code> over each element of list <code>L</code> in parallel,
+       returning the results in the same order as the input list.</p>
+
 <h3 class="function"><a name="reload_all-1">reload_all/1</a></h3>
 <div class="spec">
 <p><tt>reload_all(Module::atom()) -&gt; [{<a href="#type-purge_response">purge_response()</a>, <a href="#type-load_file_response">load_file_response()</a>}]</tt><br></p>
 </div><p>Ask each member node of the riak ring to reload the given
        Module.  Return is a list of the results of code:purge/1
        and code:load_file/1 on each node.</p>
+
+<h3 class="function"><a name="replace_file-2">replace_file/2</a></h3>
+<div class="spec">
+<p><tt>replace_file(FN::string(), Data::iodata()) -&gt; ok | {error, term()}</tt><br></p>
+</div>
 
 <h3 class="function"><a name="rpc_every_member-4">rpc_every_member/4</a></h3>
 <div class="spec">
@@ -148,6 +223,6 @@
 <hr>
 
 <div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
-<p><i>Generated by EDoc, Apr 27 2012, 16:05:06.</i></p>
+<p><i>Generated by EDoc, Feb 14 2013, 15:00:13.</i></p>
 </body>
 </html>

@@ -1,6 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
 <title>Module riak_core_handoff_manager</title>
 <link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
 </head>
@@ -15,12 +16,20 @@
 
 <h2><a name="types">Data Types</a></h2>
 
+<h3 class="typedecl"><a name="type-ho_stats">ho_stats()</a></h3>
+<p><tt>ho_stats() = #ho_stats{interval_end = undefined | <a href="erlang.html#type-timestamp">erlang:timestamp()</a>, last_update = undefined | <a href="erlang.html#type-timestamp">erlang:timestamp()</a>, objs = non_neg_integer(), bytes = non_neg_integer()}</tt></p>
+
+
 <h3 class="typedecl"><a name="type-index">index()</a></h3>
 <p><tt>index() = integer()</tt></p>
 
 
-<h3 class="typedecl"><a name="type-modindex">modindex()</a></h3>
-<p><tt>modindex() = {module(), <a href="#type-index">index()</a>}</tt></p>
+<h3 class="typedecl"><a name="type-mod_partition">mod_partition()</a></h3>
+<p><tt>mod_partition() = {module(), <a href="#type-index">index()</a>}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-mod_src_tgt">mod_src_tgt()</a></h3>
+<p><tt>mod_src_tgt() = {module(), <a href="#type-index">index()</a>, <a href="#type-index">index()</a>}</tt></p>
 
 
 <h2><a name="index">Function Index</a></h2>
@@ -28,20 +37,25 @@
 <tr><td valign="top"><a href="#add_inbound-1">add_inbound/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#add_outbound-4">add_outbound/4</a></td><td></td></tr>
 <tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_concurrency-0">get_concurrency/0</a></td><td></td></tr>
 <tr><td valign="top"><a href="#get_exclusions-1">get_exclusions/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#kill_handoffs-0">kill_handoffs/0</a></td><td></td></tr>
+<tr><td valign="top"><a href="#kill_xfer-3">kill_xfer/3</a></td><td>Kill the transfer of <code>ModSrcTarget</code> with <code>Reason</code>.</td></tr>
 <tr><td valign="top"><a href="#remove_exclusion-2">remove_exclusion/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#set_concurrency-1">set_concurrency/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#set_recv_data-2">set_recv_data/2</a></td><td>Associate <code>Data</code> with the inbound handoff <code>Recv</code>.</td></tr>
 <tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td></td></tr>
 <tr><td valign="top"><a href="#status-0">status/0</a></td><td></td></tr>
 <tr><td valign="top"><a href="#status-1">status/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#status_update-2">status_update/2</a></td><td>Send status updates <code>Stats</code> to the handoff manager for a
-       particular handoff identified by <code>ModIdx</code>.</td></tr>
+       particular handoff identified by <code>ModSrcTgt</code>.</td></tr>
 <tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#xfer-3">xfer/3</a></td><td>Initiate a transfer from <code>SrcPartition</code> to <code>TargetPartition</code>
+       for the given <code>Module</code> using the <code>FilterModFun</code> filter.</td></tr>
 </table>
 
 <h2><a name="functions">Function Details</a></h2>
@@ -66,6 +80,11 @@
 <p><tt>code_change(OldVsn, State, Extra) -&gt; any()</tt></p>
 </div>
 
+<h3 class="function"><a name="get_concurrency-0">get_concurrency/0</a></h3>
+<div class="spec">
+<p><tt>get_concurrency() -&gt; any()</tt></p>
+</div>
+
 <h3 class="function"><a name="get_exclusions-1">get_exclusions/1</a></h3>
 <div class="spec">
 <p><tt>get_exclusions(Module) -&gt; any()</tt></p>
@@ -83,7 +102,7 @@
 
 <h3 class="function"><a name="handle_info-2">handle_info/2</a></h3>
 <div class="spec">
-<p><tt>handle_info(Info, State) -&gt; any()</tt></p>
+<p><tt>handle_info(X1, State) -&gt; any()</tt></p>
 </div>
 
 <h3 class="function"><a name="init-1">init/1</a></h3>
@@ -96,6 +115,11 @@
 <p><tt>kill_handoffs() -&gt; any()</tt></p>
 </div>
 
+<h3 class="function"><a name="kill_xfer-3">kill_xfer/3</a></h3>
+<div class="spec">
+<p><tt>kill_xfer(SrcNode::node(), ModSrcTarget::tuple(), Reason::any()) -&gt; ok</tt><br></p>
+</div><p>Kill the transfer of <code>ModSrcTarget</code> with <code>Reason</code>.</p>
+
 <h3 class="function"><a name="remove_exclusion-2">remove_exclusion/2</a></h3>
 <div class="spec">
 <p><tt>remove_exclusion(Module, Index) -&gt; any()</tt></p>
@@ -105,6 +129,11 @@
 <div class="spec">
 <p><tt>set_concurrency(Limit) -&gt; any()</tt></p>
 </div>
+
+<h3 class="function"><a name="set_recv_data-2">set_recv_data/2</a></h3>
+<div class="spec">
+<p><tt>set_recv_data(Recv::pid(), Data::<a href="proplists.html#type-proplist">proplists:proplist()</a>) -&gt; ok</tt><br></p>
+</div><p>Associate <code>Data</code> with the inbound handoff <code>Recv</code>.</p>
 
 <h3 class="function"><a name="start_link-0">start_link/0</a></h3>
 <div class="spec">
@@ -123,17 +152,23 @@
 
 <h3 class="function"><a name="status_update-2">status_update/2</a></h3>
 <div class="spec">
-<p><tt>status_update(ModIdx::<a href="#type-modindex">modindex()</a>, Stats::<a href="proplists.html#type-proplist">proplists:proplist()</a>) -&gt; ok</tt><br></p>
+<p><tt>status_update(ModSrcTgt::<a href="#type-mod_src_tgt">mod_src_tgt()</a>, Stats::<a href="#type-ho_stats">ho_stats()</a>) -&gt; ok</tt><br></p>
 </div><p>Send status updates <code>Stats</code> to the handoff manager for a
-       particular handoff identified by <code>ModIdx</code>.</p>
+       particular handoff identified by <code>ModSrcTgt</code>.</p>
 
 <h3 class="function"><a name="terminate-2">terminate/2</a></h3>
 <div class="spec">
 <p><tt>terminate(Reason, State) -&gt; any()</tt></p>
 </div>
+
+<h3 class="function"><a name="xfer-3">xfer/3</a></h3>
+<div class="spec">
+<p><tt>xfer(X1::{<a href="#type-index">index()</a>, node()}, X2::<a href="#type-mod_partition">mod_partition()</a>, FilterModFun::{module(), atom()}) -&gt; ok</tt><br></p>
+</div><p>Initiate a transfer from <code>SrcPartition</code> to <code>TargetPartition</code>
+       for the given <code>Module</code> using the <code>FilterModFun</code> filter.</p>
 <hr>
 
 <div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
-<p><i>Generated by EDoc, Apr 27 2012, 16:05:07.</i></p>
+<p><i>Generated by EDoc, Feb 14 2013, 15:00:14.</i></p>
 </body>
 </html>

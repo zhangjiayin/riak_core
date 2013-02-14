@@ -1,0 +1,90 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Module riak_core_repair</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module riak_core_repair</h1>
+<ul class="index"><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+
+
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-hash_range">hash_range()</a></h3>
+<p><tt>hash_range() = <a href="#type-range_wrap">range_wrap()</a> | <a href="#type-range_nowrap">range_nowrap()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-partition">partition()</a></h3>
+<p><tt>partition() = non_neg_integer()</tt></p>
+
+
+<h3 class="typedecl"><a name="type-range_nowrap">range_nowrap()</a></h3>
+<p><tt>range_nowrap() = {nowrap, GTE::binary(), LTE::binary()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-range_wrap">range_wrap()</a></h3>
+<p><tt>range_wrap() = {wrap, GTE::binary(), LTE::binary()}</tt></p>
+
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#gen_filter-5">gen_filter/5</a></td><td>Generate a <code>Filter</code> fun to use during partition repair.</td></tr>
+<tr><td valign="top"><a href="#gen_range-3">gen_range/3</a></td><td>Generate the hash <code>Range</code> for a given <code>Target</code> partition and
+       <code>NVal</code>.</td></tr>
+<tr><td valign="top"><a href="#gen_range_fun-2">gen_range_fun/2</a></td><td>Generate the function that will return the hash range for a
+       given <code>Bucket</code>.</td></tr>
+<tr><td valign="top"><a href="#gen_range_map-3">gen_range_map/3</a></td><td>Generate the map from bucket <code>B</code> to hash <code>Range</code> that a key
+       must fall into to be included for repair on the <code>Target</code>
+       partition.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="gen_filter-5">gen_filter/5</a></h3>
+<div class="spec">
+<p><tt>gen_filter(Target, Ring, NValMap, DefaultN, InfoFun) -&gt; any()</tt></p>
+</div><p><p>Generate a <code>Filter</code> fun to use during partition repair.</p>
+ 
+       <p><code>Target</code> - Partition under repair.</p>
+ 
+       <p><code>Ring</code> - The ring to use for repair.</p>
+ 
+       <p><code>NValMap</code> - A map from bucket to <code>n_val</code>, only custom buckets       
+have entries, everything else uses default.</p>
+ 
+       <p><code>DefaultN</code> - The default <code>n_val</code>.</p>
+ 
+       <code>InfoFun</code> - A function which returns information about the key
+       used to determine if it should be repaired or not.</p>
+
+<h3 class="function"><a name="gen_range-3">gen_range/3</a></h3>
+<div class="spec">
+<p><tt>gen_range(Target::<a href="#type-partition">partition()</a>, Ring::<a href="riak_core_ring.html#type-riak_core_ring">riak_core_ring:riak_core_ring()</a>, NVal::integer()) -&gt; <a href="#type-hash_range">hash_range()</a></tt><br></p>
+</div><p><p>Generate the hash <code>Range</code> for a given <code>Target</code> partition and
+       <code>NVal</code>.</p>
+ 
+  Note: The type of NVal should be pos_integer() but dialyzer says
+        success typing is integer() and I don't have time for games.</p>
+
+<h3 class="function"><a name="gen_range_fun-2">gen_range_fun/2</a></h3>
+<div class="spec">
+<p><tt>gen_range_fun(RangeMap::list(), Default::<a href="#type-hash_range">hash_range()</a>) -&gt; function()</tt><br></p>
+</div><p>Generate the function that will return the hash range for a
+       given <code>Bucket</code>.</p>
+
+<h3 class="function"><a name="gen_range_map-3">gen_range_map/3</a></h3>
+<div class="spec">
+<p><tt>gen_range_map(Target::<a href="#type-partition">partition()</a>, Ring::<a href="riak_core_ring.html#type-riak_core_ring">riak_core_ring:riak_core_ring()</a>, NValMap::list()) -&gt; [{B::<a href="riak_object.html#type-bucket">riak_object:bucket()</a>, Range::<a href="#type-hash_range">hash_range()</a>}]</tt><br></p>
+</div><p>Generate the map from bucket <code>B</code> to hash <code>Range</code> that a key
+       must fall into to be included for repair on the <code>Target</code>
+       partition.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, Feb 14 2013, 15:00:14.</i></p>
+</body>
+</html>
