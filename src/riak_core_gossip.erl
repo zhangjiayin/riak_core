@@ -59,12 +59,10 @@
 distribute_ring(Ring) ->
     gen_server:cast({?MODULE, node()}, {distribute_ring, Ring}).
 
-%% send_ring/1 -
-%% Send the current node's ring to some other node.
+%% @doc Send the current node's ring to some other node.
 send_ring(ToNode) -> send_ring(node(), ToNode).
 
-%% send_ring/2 -
-%% Send the ring from one node to another node.
+%% @doc Send the ring from one node to another node.
 %% Does nothing if the two nodes are the same.
 send_ring(Node, Node) ->
     ok;
@@ -153,6 +151,7 @@ init(_State) ->
                                          gossip_tokens=Tokens}),
     {ok, State}.
 
+%% @private
 handle_call(legacy_gossip, _From, State) ->
     {ok, Ring} = riak_core_ring_manager:get_raw_ring(),
     Reply = check_legacy_gossip(Ring, State),

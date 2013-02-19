@@ -49,13 +49,15 @@
 %% variable for the appropriate application. For example, to override the
 %% `{riak_core, vnode_routing}' capability, the user could add the following
 %% to `riak_core' section of `app.config':
-%%
+%% 
+%% ```
 %% {override_capability,
 %%   [{vnode_routing,
 %%     [{use, some_mode},
 %%      {prefer, some_other_mode}]
 %%   }]
 %% }
+%% '''
 %%
 %% The two override parameters are `use' and `prefer'. The `use' parameter
 %% specifies a mode that will always be used for the given capability,

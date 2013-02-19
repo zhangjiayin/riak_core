@@ -16,20 +16,30 @@
 %% under the License.
 %%
 %% -------------------------------------------------------------------
+%% @doc Manages proxy processes that forward all messages to another
+%% process.
+
 -module(process_proxy).
 -export([start_link/2, init/1, stop/1]).
 
+%% @doc Starts a proxy process registered as `RegName' and forwarding to `ProxyTo'
+-spec start_link(RegName::atom(), ProxyTo::(pid() | atom())) -> {ok, pid()} | {error, timeout}.
 start_link(RegName, ProxyTo) ->
     proc_lib:start_link(?MODULE, init, [[self(), RegName, ProxyTo]]).
 
+%% @private Internal process initialization
+-spec init(list()) -> no_return().
 init([ParentPid, RegName, ProxyTo]) ->
     erlang:register(RegName, self()),
     proc_lib:init_ack(ParentPid, {ok, self()}),
     loop(ProxyTo).
 
+%% @doc Stops the proxy process
+-spec stop(Name::atom()) -> stop.
 stop(Name) ->
     Name ! stop.
 
+-spec loop(pid() | atom()) -> no_return.
 loop(ProxyTo) ->
     receive
         stop ->
