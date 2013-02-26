@@ -71,7 +71,7 @@ handle_info(start_listen, #state{portnum=Port, ipaddr=IpAddr}=State) ->
     SockOpts = [{ip, IpAddr},{active,false}|sock_opts()],
     case gen_utp:listen(Port, SockOpts) of
         {ok, LSock} ->
-            ok = gen_utp:async_accept(LSock),
+            {ok, _Ref} = gen_utp:async_accept(LSock),
             {noreply, State#state{lsock=LSock}};
         Err ->
             {stop, Err, State}
@@ -79,7 +79,7 @@ handle_info(start_listen, #state{portnum=Port, ipaddr=IpAddr}=State) ->
 handle_info({utp_async, S, _}, #state{lsock=LSock}=State) ->
     case new_connection(S, State) of
         {ok, NewState} ->
-            ok = gen_utp:async_accept(LSock),
+            {ok, _Ref} = gen_utp:async_accept(LSock),
             {noreply, NewState};
         Else ->
             Else
