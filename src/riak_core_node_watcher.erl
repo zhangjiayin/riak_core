@@ -19,6 +19,10 @@
 %% under the License.
 %%
 %% -------------------------------------------------------------------
+%% @doc Process that monitors connectivity to other nodes in the cluster
+%% using Erlang's built-in facilities and keeps a tab of the status of 
+%% various application services and optionaly performs periodic health checks
+%% on them.
 -module(riak_core_node_watcher).
 
 -behaviour(gen_server).
@@ -33,7 +37,6 @@
          suspend_health_checks/0,
          resume_health_checks/0,
          service_down/1,
-         service_down/2,
          node_up/0,
          node_down/0,
          services/0, services/1,
@@ -74,6 +77,8 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+%% @doc Mark service as up. If previously registered with health checks,
+%% those are removed.
 service_up(Id, Pid) ->
     gen_server:call(?MODULE, {service_up, Id, Pid}, infinity).
 
@@ -132,23 +137,29 @@ resume_health_checks() ->
 service_down(Id) ->
     gen_server:call(?MODULE, {service_down, Id}, infinity).
 
-service_down(Id, true) ->
-    gen_server:call(?MODULE, {service_down, Id, health_check}, infinitiy);
-service_down(Id, false) ->
-    service_down(Id).
-
+%% @doc Put this node in UP state, which would re-enable health checks
+%% if currently in the DOWN state.
+-spec node_up() -> ok.
 node_up() ->
     gen_server:call(?MODULE, {node_status, up}, infinity).
 
+%% @doc Put this node in the DOWN state, which would suspend all health checks.
+-spec node_down() -> ok.
 node_down() ->
     gen_server:call(?MODULE, {node_status, down}, infinity).
 
+%% @doc Returns a list of all services registered.
+-spec services() -> [term()].
 services() ->
     gen_server:call(?MODULE, services, infinity).
 
+%% @doc Returns a list of all services registered on the given node.
+-spec services(Node::node()) -> [term()].
 services(Node) ->
     internal_get_services(Node).
 
+%% @doc Returns a list of nodes which have registered the given service.
+-spec nodes(term()) -> [node()].
 nodes(Service) ->
     internal_get_nodes(Service).
 
@@ -157,6 +168,7 @@ nodes(Service) ->
 %% Test API
 %% ===================================================================
 
+%% @private
 avsn() ->
     gen_server:call(?MODULE, get_avsn, infinity).
 
@@ -165,6 +177,7 @@ avsn() ->
 %% gen_server callbacks
 %% ====================================================================
 
+%% @private
 init([]) ->
     %% Trap exits so that terminate/2 will get called
     process_flag(trap_exit, true),
@@ -182,6 +195,7 @@ init([]) ->
 
     {ok, schedule_broadcast(#state{})}.
 
+%% @private
 handle_call({set_bcast_mod, Module, Fn}, _From, State) ->
     %% Call available for swapping out how broadcasts are generated
     {reply, ok, State#state {bcast_mod = {Module, Fn}}};
@@ -278,6 +292,7 @@ handle_call(resume_healths, _From, State = #state{healths_enabled=false}) ->
     {reply, ok, update_avsn(State#state{health_checks = Healths, healths_enabled = true})}.
 
 
+%% @private
 handle_cast({ring_update, R}, State) ->
     %% Ring has changed; determine what peers are new to us
     %% and broadcast out current status to those peers.
@@ -300,6 +315,7 @@ handle_cast({health_check_result, Pid, R}, State) ->
     State2 = handle_check_msg({result, Pid, R}, Service, State),
     {noreply, State2}.
 
+%% @private
 handle_info({nodeup, _Node}, State) ->
     %% Ignore node up events; nothing to do here...
     {noreply, State};
@@ -349,11 +365,13 @@ handle_info(broadcast, State) ->
     {noreply, S2}.
 
 
+%% @private
+%% @doc Broadcasts to our peers that we are shutting down
 terminate(_Reason, State) ->
-    %% Let our peers know that we are shutting down
     broadcast(State#state.peers, State#state { status = down }).
 
 
+%% @private
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
