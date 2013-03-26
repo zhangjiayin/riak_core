@@ -52,7 +52,8 @@
           src_target     :: {non_neg_integer(), non_neg_integer()},
           stats          :: #ho_stats{},
           tcp_mod        :: module(),
-          total          :: non_neg_integer()
+          total          :: non_neg_integer(),
+          total_bytes    :: non_neg_integer()
         }).
 
 %%%===================================================================
@@ -146,6 +147,7 @@ start_fold(TargetNode, Module, {Type, Opts}, ParentPid, SslOpts) ->
                                       src_target={SrcPartition, TargetPartition},
                                       stats=Stats,                                  %% JFW: has objects and bytes
                                       tcp_mod=TcpMod,
+                                      total_bytes=0,
                                       total=0}},                                    %% JFW: total objects
 
 
@@ -167,9 +169,8 @@ end),
 %%                                                 Req,
 %%                                                 VMaster, infinity),
 
-Stats2 = R#ho_acc.stats,
-Bytes = Stats2#ho_stats.bytes,
-Objs = Stats2#ho_stats.objs,
+Bytes = R#ho_acc.total_bytes,
+Objs = R#ho_acc.total,
 ElapsedSeconds = ElapsedTime/1000000,
 Throughput = Bytes / ElapsedSeconds,
 lager:info("JFW: stats output after ~p seconds (~pms): ~p bytes in ~p objects; throughput: ~p bytes/second ~n", [ElapsedSeconds, ElapsedTime, Bytes, Objs, Throughput]),
@@ -285,7 +286,8 @@ visit_item(K, V, Acc) ->
             src_target={SrcPartition, TargetPartition},
             stats=Stats,
             tcp_mod=TcpMod,
-            total=Total
+            total=Total,
+            total_bytes=TotalBytes
            } = Acc,
 
     case Filter(K) of
@@ -300,7 +302,8 @@ visit_item(K, V, Acc) ->
 
             case TcpMod:send(Sock, M) of
                 ok ->
-                    Acc#ho_acc{ack=Ack+1, error=ok, stats=Stats3, total=Total+1};
+                    Acc#ho_acc{ack=Ack+1, error=ok, stats=Stats3, total=Total+1,
+                               total_bytes=TotalBytes+NumBytes};
                 {error, Reason} ->
                     Acc#ho_acc{error={error, Reason}, stats=Stats3}
             end;
