@@ -75,7 +75,8 @@ start(_StartType, _StartArgs) ->
     %% Spin up the supervisor; prune ring files as necessary
     case riak_core_sup:start_link() of
         {ok, Pid} ->
-            riak_core:register(riak_core, [{stat_mod, riak_core_stat}]),
+            riak_core:register(riak_core, [{stat_mod, riak_core_stat},
+                                           {bucket_validator, riak_core_bucket}]),
             ok = riak_core_ring_events:add_guarded_handler(riak_core_ring_handler, []),
 
             %% Register capabilities

@@ -33,7 +33,8 @@
          get_buckets/1,
          merge_props/2,
          name/1,
-         n_val/1]).
+         n_val/1,
+         validate/1]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -147,6 +148,34 @@ name(BProps) ->
 
 n_val(BProps) ->
     proplists:get_value(n_val, BProps).
+
+%% Bucket validators API
+validate(BucketProps) when is_list(BucketProps) ->
+    case proplists:is_defined(n_val, BucketProps) of
+        true ->
+            validate_nval(BucketProps);
+        false  -> {BucketProps, []}
+    end.
+
+validate_nval(BucketProps) ->
+    %% n_val must be an integer smaller than ring size
+    case proplists:get_value(n_val, BucketProps) of
+        N when is_integer(N) ->
+            %%validate
+            RingSize = get_ring_size(),
+            case N =< RingSize of
+                true ->
+                    {BucketProps, []};
+                false ->
+                    {lists:keydelete(n_val, 1, BucketProps), [{n_val, greater_than_ringsize}]}
+            end;
+        _Other  ->
+            {lists:keydelete(n_val, 1, BucketProps), [{n_val, not_an_integer}]}
+    end.
+
+get_ring_size() ->
+    {ok, MyRing} = riak_core_ring_manager:get_raw_ring(),
+    riak_core_ring:num_partitions(MyRing).
 
 %% ===================================================================
 %% EUnit tests
