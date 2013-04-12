@@ -138,13 +138,13 @@ handle_proxy(Msg, State) ->
             Counter0
     end,
 
-    case Counter >= Threshold of
+    case Counter < Threshold of
         true ->
-            {noreply, State#state{check_counter=Counter}};
+            Pid ! Msg;
         false ->
-            Pid ! Msg,
-            {noreply, NewState#state{check_counter=Counter}}
-    end.
+            ok
+    end,
+    {noreply, NewState#state{check_counter=Counter}}.
 
 %% @private
 get_vnode_pid(State=#state{mod=Mod, index=Index, vnode_pid=undefined}) ->
