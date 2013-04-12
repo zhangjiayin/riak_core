@@ -127,7 +127,7 @@ handle_proxy(Msg, State) ->
     #state{check_counter=Counter0, check_interval=Interval,
         check_threshold=Threshold} = State,
     {Pid, NewState} = get_vnode_pid(State),
-    Counter = case (Counter0 rem Interval) == 0 of
+    Counter = case Counter0 >= Interval andalso (Counter0 rem Interval) == 0 of
         true ->
             %% time to check the mailbox size
             {message_queue_len, L} =
