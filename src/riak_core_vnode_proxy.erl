@@ -161,6 +161,9 @@ fake_loop() ->
     receive
         block ->
             fake_loop_block();
+        slow ->
+            ?debugFmt("entering slow loop~n", []),
+            fake_loop_slow();
         {get_count, Pid} ->
             Pid ! {count, erlang:get(count)},
             fake_loop();
@@ -171,6 +174,18 @@ fake_loop() ->
             end,
             put(count, Count+1),
             fake_loop()
+    end.
+
+fake_loop_slow() ->
+    timer:sleep(100),
+    receive
+        _Msg ->
+            Count = case erlang:get(count) of
+                undefined -> 0;
+                Val -> Val
+            end,
+            put(count, Count+1),
+            fake_loop_slow()
     end.
 
 fake_loop_block() ->
@@ -229,6 +244,23 @@ overload_test_() ->
                                 end
                         end
                     }
+            end,
+            fun({VnodePid, ProxyPid}) ->
+                    {"should tolerate slow vnodes",
+                        {timeout, 60000,
+                        fun() ->
+                                VnodePid ! slow,
+                                [ProxyPid ! hello || _ <- lists:seq(1, 50000)],
+                                %% synchronize on the mailbox
+                                Reply = gen:call(ProxyPid, '$vnode_proxy_call', sync),
+                                ?assertEqual({ok, ok}, Reply),
+                                %% check that the outstanding message count is
+                                %% reasonable
+                                {message_queue_len, L} =
+                                    erlang:process_info(VnodePid, message_queue_len),
+                                ?assert(L < 10000)
+                        end
+                    }}
             end
         ]}.
 -endif.
