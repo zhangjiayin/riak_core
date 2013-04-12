@@ -162,7 +162,6 @@ fake_loop() ->
         block ->
             fake_loop_block();
         slow ->
-            ?debugFmt("entering slow loop~n", []),
             fake_loop_slow();
         {get_count, Pid} ->
             Pid ! {count, erlang:get(count)},
@@ -258,7 +257,7 @@ overload_test_() ->
                                 %% reasonable
                                 {message_queue_len, L} =
                                     erlang:process_info(VnodePid, message_queue_len),
-                                ?assert(L <= 10000)
+                                ?assert(L =< 10000)
                         end
                     }}
             end
