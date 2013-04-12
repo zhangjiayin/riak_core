@@ -258,7 +258,7 @@ overload_test_() ->
                                 %% reasonable
                                 {message_queue_len, L} =
                                     erlang:process_info(VnodePid, message_queue_len),
-                                ?assert(L < 10000)
+                                ?assert(L <= 10000)
                         end
                     }}
             end
