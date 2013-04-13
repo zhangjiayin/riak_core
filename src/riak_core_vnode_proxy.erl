@@ -24,6 +24,8 @@
 -record(state, {mod, index, vnode_pid, vnode_mref, check_interval,
         check_threshold, check_counter=0}).
 
+-include("riak_core_vnode.hrl").
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -125,7 +127,7 @@ handle_cast(_Msg, State) ->
 %% @private
 handle_proxy(Msg, State) ->
     #state{check_counter=Counter0, check_interval=Interval,
-        check_threshold=Threshold} = State,
+        check_threshold=Threshold, mod=Mod} = State,
     {Pid, NewState} = get_vnode_pid(State),
     Counter = case Counter0 >= Interval andalso (Counter0 rem Interval) == 0 of
         true ->
@@ -142,7 +144,13 @@ handle_proxy(Msg, State) ->
         true ->
             Pid ! Msg;
         false ->
-            ok
+            case Msg of
+                {'$gen_event', ?VNODE_REQ{sender=Sender, request=Request}} ->
+                    catch(Mod:handle_overload_command(Request, Sender,
+                            State#state.index));
+                _ ->
+                    ok
+            end
     end,
     {noreply, NewState#state{check_counter=Counter}}.
 
