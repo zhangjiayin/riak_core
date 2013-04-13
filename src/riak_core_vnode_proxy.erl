@@ -22,7 +22,7 @@
 -export([system_continue/3, system_terminate/4, system_code_change/4]).
 
 -record(state, {mod, index, vnode_pid, vnode_mref, check_interval,
-        check_threshold, check_counter=0}).
+        check_threshold, check_counter=0, check_mailbox=0}).
 
 -include("riak_core_vnode.hrl").
 
@@ -100,7 +100,8 @@ loop(Parent, State) ->
             sys:handle_system_msg(Msg, From, Parent, ?MODULE, [], State);
         Msg ->
             {noreply, NewState} = handle_proxy(Msg,
-                State#state{check_counter=State#state.check_counter+1}),
+                State#state{check_counter=State#state.check_counter+1,
+                    check_mailbox=State#state.check_mailbox+1}),
             loop(Parent, NewState)
     end.
 
@@ -126,21 +127,21 @@ handle_cast(_Msg, State) ->
 
 %% @private
 handle_proxy(Msg, State) ->
-    #state{check_counter=Counter0, check_interval=Interval,
-        check_threshold=Threshold, mod=Mod} = State,
+    #state{check_counter=Counter, check_interval=Interval,
+        check_threshold=Threshold, check_mailbox=Mailbox0, mod=Mod} = State,
     {Pid, NewState} = get_vnode_pid(State),
-    Counter = case Counter0 >= Interval andalso (Counter0 rem Interval) == 0 of
+    {Mailbox, NewCounter} = case Counter >= Interval andalso (Counter rem Interval) == 0 of
         true ->
             %% time to check the mailbox size
             {message_queue_len, L} =
                 erlang:process_info(Pid, message_queue_len),
-            lager:debug("reset counter to ~p", [L]),
-            L;
+            lager:debug("reset mailbox to ~p", [L]),
+            {L, 0};
         false ->
-            Counter0
+            {Mailbox0, Counter}
     end,
 
-    case Counter < Threshold of
+    case Mailbox < Threshold of
         true ->
             Pid ! Msg;
         false ->
@@ -152,7 +153,7 @@ handle_proxy(Msg, State) ->
                     ok
             end
     end,
-    {noreply, NewState#state{check_counter=Counter}}.
+    {noreply, NewState#state{check_mailbox=Mailbox, check_counter=NewCounter}}.
 
 %% @private
 get_vnode_pid(State=#state{mod=Mod, index=Index, vnode_pid=undefined}) ->
@@ -254,7 +255,6 @@ overload_test_() ->
             end,
             fun({VnodePid, ProxyPid}) ->
                     {"should tolerate slow vnodes",
-                        {timeout, 60000,
                         fun() ->
                                 VnodePid ! slow,
                                 [ProxyPid ! hello || _ <- lists:seq(1, 50000)],
@@ -267,7 +267,7 @@ overload_test_() ->
                                     erlang:process_info(VnodePid, message_queue_len),
                                 ?assert(L =< 10000)
                         end
-                    }}
+                    }
             end
         ]}.
 -endif.
