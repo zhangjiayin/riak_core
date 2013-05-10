@@ -368,15 +368,15 @@ updown() ->
                 end,
                 riak_core_tcp_mon:monitor(S, "test", gen_tcp),
                 Stat1 = riak_core_tcp_mon:status(),
-                gen_server:cast(riak_core_tcp_mon, {nodedown, 'foo', []}),
+                MPid = whereis(riak_core_tcp_mon),
+                MPid ! {nodedown, 'foo', []},
                 Stat2 = riak_core_tcp_mon:status(),
                 %% give the tcp monitor some time to gather stats
                 timer:sleep(20000),
-                gen_server:cast(riak_core_tcp_mon, {nodeup, 'foo', []}),
+                MPid ! {nodeup, 'foo', []},
                 Stat3 = riak_core_tcp_mon:status(),
                 %% these would be asserts, but eunit times out before they
                 %% run
-                ?assert(proplists:is_defined(socket,hd(Stat1))),
                 ?assert(proplists:is_defined(socket,hd(Stat2))),
                 ?assert(proplists:is_defined(socket,hd(Stat3))),
                 gen_tcp:close(S),
