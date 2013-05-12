@@ -153,8 +153,9 @@ init([Mod, Index, InitialInactivityTimeout, Forward]) ->
             end,
             riak_core_handoff_manager:remove_exclusion(Mod, Index),
             Timeout = app_helper:get_env(riak_core, vnode_inactivity_timeout, ?DEFAULT_TIMEOUT),
+            Timeout2 = Timeout + random:uniform(Timeout),
             State = #state{index=Index, mod=Mod, modstate=ModState, forward=Forward,
-                inactivity_timeout=Timeout, pool_pid=PoolPid, pool_config=PoolConfig},
+                inactivity_timeout=Timeout2, pool_pid=PoolPid, pool_config=PoolConfig},
             lager:debug("vnode :: ~p/~p :: ~p~n", [Mod, Index, Forward]),
             {ok, active, State, InitialInactivityTimeout}
     end.
