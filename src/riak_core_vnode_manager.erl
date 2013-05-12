@@ -40,6 +40,7 @@
 -endif.
 
 -record(idxrec, {key, idx, mod, pid, monref}).
+-record(monrec, {monref, key}).
 
 -record(xfer_status, {
           status                :: pending | complete,
@@ -247,7 +248,9 @@ find_vnodes(State) ->
                           monref = Mref }
         end,
     IdxRecs = [F(Pid, Idx, Mod) || {Pid, {Mod, Idx}} <- PidIdxs],
-    true = ets:insert_new(IdxTable, IdxRecs),
+    MonRecs = [#monrec{monref=Mref, key=Key}
+               || #idxrec{key=Key, monref=Mref} <- IdxRecs],
+    true = ets:insert_new(IdxTable, IdxRecs ++ MonRecs),
     State#state{idxtab=IdxTable}.
 
 %% @private
@@ -526,7 +529,13 @@ idx2vnode(Idx, Mod, _State=#state{idxtab=T}) ->
 
 %% @private
 delmon(MonRef, _State=#state{idxtab=T}) ->
-    ets:match_delete(T, {idxrec, '_', '_', '_', '_', MonRef}).
+    case ets:lookup(T, MonRef) of
+        [#monrec{key=Key}] ->
+            ets:delete(T, Key),
+            ets:delete(T, MonRef);
+        [] ->
+            ets:match_delete(T, {idxrec, '_', '_', '_', '_', MonRef})
+    end.
 
 %% @private
 add_vnode_rec(I,  _State=#state{idxtab=T}) -> ets:insert(T,I).
@@ -538,8 +547,10 @@ get_vnode(Idx, Mod, State) ->
             ForwardTo = get_forward(Mod, Idx, State),
             {ok, Pid} = riak_core_vnode_sup:start_vnode(Mod, Idx, ForwardTo),
             MonRef = erlang:monitor(process, Pid),
-            add_vnode_rec(#idxrec{key={Idx,Mod},idx=Idx,mod=Mod,pid=Pid,
-                                  monref=MonRef}, State),
+            IdxRec = #idxrec{key={Idx,Mod},idx=Idx,mod=Mod,pid=Pid,
+                             monref=MonRef},
+            MonRec = #monrec{monref=MonRef, key={Idx,Mod}},
+            add_vnode_rec([IdxRec, MonRec], State),
             Pid;
         X -> X
     end.
