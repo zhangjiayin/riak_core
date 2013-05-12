@@ -101,6 +101,7 @@
          all_next_owners/1,
          change_owners/2,
          handoff_complete/3,
+         handoff_complete/2,
          ring_ready/0,
          ring_ready/1,
          ring_ready_info/1,
@@ -792,7 +793,10 @@ ring_ready_info(State0) ->
 -spec handoff_complete(State :: chstate(), Idx :: integer(),
                        Mod :: module()) -> chstate().
 handoff_complete(State, Idx, Mod) ->
-    transfer_complete(State, Idx, Mod).
+    transfer_complete(State, [{Idx, Mod}]).
+
+handoff_complete(State, Complete) ->
+    transfer_complete(State, Complete).
 
 ring_changed(Node, State) ->
     check_tainted(State,
@@ -1200,11 +1204,21 @@ merge_status(_, _) ->
     invalid.
 
 %% @private
-transfer_complete(CState=?CHSTATE{next=Next, vclock=VClock}, Idx, Mod) ->
-    {Idx, Owner, NextOwner, Transfers, Status} = lists:keyfind(Idx, 1, Next),
-    Transfers2 = ordsets:add_element(Mod, Transfers),
+transfer_complete(CState=?CHSTATE{next=Next, vclock=VClock}, Complete) ->
     VNodeMods =
         ordsets:from_list([VMod || {_, VMod} <- riak_core:vnode_modules()]),
+    Complete2 = dict:from_list(Complete),
+    Next2 = [case dict:find(Idx, Complete2) of
+                 {ok, Mod} ->
+                     update_transfer(Transfer, Mod, VNodeMods);
+                 error ->
+                     Transfer
+             end || Transfer={Idx, _, _, _, _} <- Next],
+    VClock2 = vclock:increment(node(), VClock),
+    CState?CHSTATE{next=Next2, vclock=VClock2}.
+
+update_transfer({Idx, Owner, NextOwner, Transfers, Status}, Mod, VNodeMods) ->
+    Transfers2 = ordsets:add_element(Mod, Transfers),
     Status2 = case {Status, Transfers2} of
                   {complete, _} ->
                       complete;
@@ -1213,10 +1227,7 @@ transfer_complete(CState=?CHSTATE{next=Next, vclock=VClock}, Idx, Mod) ->
                   _ ->
                       awaiting
               end,
-    Next2 = lists:keyreplace(Idx, 1, Next,
-                             {Idx, Owner, NextOwner, Transfers2, Status2}),
-    VClock2 = vclock:increment(Owner, VClock),
-    CState?CHSTATE{next=Next2, vclock=VClock2}.
+    {Idx, Owner, NextOwner, Transfers2, Status2}.
 
 %% @private
 get_members(Members) ->

@@ -76,6 +76,7 @@
              riak_core_vnode_sup,
              riak_core_vnode_worker,
              riak_core_vnode_worker_pool,
+             riak_core_vnode_handoff_helper,
              riak_core_web,
              riak_core_wm_urlmap,
              supervisor_pre_r14b04,

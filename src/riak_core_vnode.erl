@@ -330,64 +330,12 @@ active(_Event, _From, State) ->
     Reply = ok,
     {reply, Reply, active, State, State#state.inactivity_timeout}.
 
-%% This code lives in riak_core_vnode rather than riak_core_vnode_manager
-%% because the ring_trans call is a synchronous call to the ring manager,
-%% and it is better to block an individual vnode rather than the vnode
-%% manager. Blocking the manager can impact all vnodes. This code is safe
-%% to execute on multiple parallel vnodes because of the synchronization
-%% afforded by having all ring changes go through the single ring manager.
-mark_handoff_complete(Idx, Prev, New, Mod) ->
-    Result = riak_core_ring_manager:ring_trans(
-      fun(Ring, _) ->
-              Owner = riak_core_ring:index_owner(Ring, Idx),
-              {_, NextOwner, Status} = riak_core_ring:next_owner(Ring, Idx, Mod),
-              NewStatus = riak_core_ring:member_status(Ring, New),
-
-              case {Owner, NextOwner, NewStatus, Status} of
-                  {Prev, New, _, awaiting} ->
-                      Ring2 = riak_core_ring:handoff_complete(Ring, Idx, Mod),
-                      %% Optimization. Only alter the local ring without
-                      %% triggering a gossip, thus implicitly coalescing
-                      %% multiple vnode handoff completion events. In the
-                      %% future we should decouple vnode handoff state from
-                      %% the ring structure in order to make gossip independent
-                      %% of ring size.
-                      {set_only, Ring2};
-                  _ ->
-                      ignore
-              end
-      end, []),
-
-    case Result of
-        {ok, NewRing} ->
-            NewRing = NewRing;
-        _ ->
-            {ok, NewRing} = riak_core_ring_manager:get_my_ring()
-    end,
-
-    Owner = riak_core_ring:index_owner(NewRing, Idx),
-    {_, NextOwner, Status} = riak_core_ring:next_owner(NewRing, Idx, Mod),
-    NewStatus = riak_core_ring:member_status(NewRing, New),
-
-    case {Owner, NextOwner, NewStatus, Status} of
-        {_, _, invalid, _} ->
-            %% Handing off to invalid node, don't give-up data.
-            continue;
-        {Prev, New, _, _} ->
-            forward;
-        {Prev, _, _, _} ->
-            %% Handoff wasn't to node that is scheduled in next, so no change.
-            continue;
-        {_, _, _, _} ->
-            shutdown
-    end.
-
 finish_handoff(State=#state{mod=Mod,
                             modstate=ModState,
                             index=Idx,
                             handoff_node=HN,
                             pool_pid=Pool}) ->
-    case mark_handoff_complete(Idx, node(), HN, Mod) of
+    case riak_core_vnode_handoff_helper:mark_handoff_complete(Idx, node(), HN, Mod) of
         continue ->
             continue(State#state{handoff_node=none});
         Res when Res == forward; Res == shutdown ->
