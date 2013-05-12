@@ -32,6 +32,7 @@
          get_raw_ring/0,
          get_raw_ring_chashbin/0,
          get_chash_bin/0,
+         get_ring_id/0,
          get_bucket_meta/1,
          refresh_my_ring/0,
          refresh_ring/2,
@@ -258,11 +259,22 @@ stop() ->
 init([Mode]) ->
     ets:new(?ETS, [named_table, protected, {write_concurrency, false}, {read_concurrency, true}]),
     %% ets:new(?ETS, [named_table, protected]),
-    ets:insert(?ETS, [{changes, 0}, {promoted, 0}]),
+    Id = reset_ring_id(),
+    ets:insert(?ETS, [{changes, 0}, {promoted, 0}, {id, Id}]),
     Ring = reload_ring(Mode),
     State = set_ring(Ring, #state{mode = Mode}),
     riak_core_ring_events:ring_update(Ring),
     {ok, State}.
+
+reset_ring_id() ->
+    Epoch = case mochiglobal:get(riak_ring_id_epoch) of
+                undefined ->
+                    0;
+                Value ->
+                    Value
+            end,
+    mochiglobal:put(riak_ring_id_epoch, Epoch + 1),
+    {Epoch + 1, 0}.
 
 reload_ring(test) ->
     riak_core_ring:fresh(16,node());
@@ -363,6 +375,10 @@ handle_cast(write_ringfile, State=#state{raw_ring=Ring}) ->
     do_write_ringfile(Ring),
     {noreply,State}.
 
+handle_info(increment_ring_id, State) ->
+    {Epoch, Id} = get_ring_id(),
+    ets:insert(?ETS, {id, {Epoch, Id+1}}),
+    {noreply, State};
 
 handle_info(inactivity_timeout, State=#state{ring_changed_time=Then}) ->
     DeltaUS = erlang:max(0, timer:now_diff(os:timestamp(), Then)),
@@ -496,8 +512,10 @@ set_ring_global(Ring) ->
             {ok,Meta} <- [riak_core_ring:get_meta({bucket, Bucket}, TaintedRing)]],
     BucketMeta2 = lists:ukeysort(1, BucketMeta ++ BucketDefaults),
     CHBin = chashbin:create(riak_core_ring:chash(TaintedRing)),
+    {Epoch, Id} = ets:lookup_element(?ETS, id, 2),
     Actions = [{ring, TaintedRing},
                {raw_ring, Ring},
+               {id, {Epoch,Id+1}},
                {chashbin, CHBin} | BucketMeta2],
     ets:insert(?ETS, Actions),
     ets:match_delete(?ETS, {{bucket, '_'}, undefined}),
@@ -508,6 +526,14 @@ set_ring_global(Ring) ->
             mochiglobal:put(?RING_KEY, ets)
     end,
     ok.
+
+get_ring_id() ->
+    case ets:lookup(?ETS, id) of
+        [{_, Id}] ->
+            Id;
+        _ ->
+            {0,0}
+    end.
 
 get_bucket_meta(Bucket) ->
     case ets:lookup(?ETS, {bucket, Bucket}) of
