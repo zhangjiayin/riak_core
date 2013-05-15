@@ -380,7 +380,7 @@ updown() ->
                 ?assert(proplists:is_defined(socket,hd(Stat2))),
                 ?assert(proplists:is_defined(socket,hd(Stat3))),
                 gen_tcp:close(S),
-                catch(exit(MPid)),
+                wait_fo_pid(MPid),
                 Pid ! finished
         end),
     timer:sleep(1000),
@@ -399,4 +399,14 @@ updown() ->
     end.
 nodeupdown_test_() ->
        {timeout, 30, fun updown/0}.
+
+wait_for_pid(Pid) ->
+    Mref = erlang:monitor(process, Pid),
+    receive
+        {'DOWN',Mref,process,_,_} ->
+            ok
+    after
+        5000 ->
+            {error, didnotexit, Pid, erlang:process_info(Pid)}
+    end.
 -endif.
