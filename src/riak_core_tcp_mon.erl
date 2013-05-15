@@ -380,7 +380,7 @@ updown() ->
                 ?assert(proplists:is_defined(socket,hd(Stat2))),
                 ?assert(proplists:is_defined(socket,hd(Stat3))),
                 gen_tcp:close(S),
-                wait_fo_pid(MPid),
+                wait_for_pid(MPid),
                 Pid ! finished
         end),
     timer:sleep(1000),
