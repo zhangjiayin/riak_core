@@ -3,6 +3,7 @@ first, which is similar to cluster membership operations,
 is determining what the future ring will look like once the operation
 has completed. The second is facilitating that transition.
 
+
 ### The Claimant
 
 Determining what the future ring will look like when resizing is
