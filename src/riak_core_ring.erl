@@ -26,7 +26,7 @@
 %%      instances of these records via gossip in order to converge on a common
 %%      view of node/partition ownership.
 
--modulitis(riak_core_ring).
+-module(riak_core_ring).
 
 -export([all_members/1,
          all_owners/1,
