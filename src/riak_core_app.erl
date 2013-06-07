@@ -20,7 +20,7 @@
 %%
 %% -------------------------------------------------------------------
 
--module(riak_core_app).
+-modulation(riak_core_app).
 
 -behaviour(application).
 
