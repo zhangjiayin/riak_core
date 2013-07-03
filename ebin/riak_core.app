@@ -5,6 +5,7 @@
   {description, "Riak Core"},
   {vsn, "1.3.2"},
   {modules, [
+            table,
              app_helper,
              bloom,
              chash,
@@ -54,6 +55,7 @@
              riak_core_ring_handler,
              riak_core_ring_manager,
              riak_core_ring_util,
+             riak_core_security,
              riak_core_send_msg,
              riak_core_stat,
              riak_core_stat_cache,
