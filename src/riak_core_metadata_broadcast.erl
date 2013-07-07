@@ -3,9 +3,11 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/2,
+-export([start_link/0,
+         start_link/2,
          broadcast/2]).
 
+%% Debug API
 -export([debug_get_peers/2]).
 
 %% gen_server callbacks
@@ -62,6 +64,35 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+-spec start_link() -> {ok, pid()} | ignore | {error, term()}.
+start_link() ->
+    {ok, Ring} = riak_core_ring_manager:get_my_ring(),
+    Members = riak_core_ring:active_members(Ring),
+    %% TODO: pull this out into a function
+    case length(Members) of
+        1 ->
+            %% Single member, must be ourselves
+            InitEagers = [],
+            InitLazy = undefined;
+        2 ->
+            %% Two members, just eager push to the other
+            InitEagers = Members -- [node()],
+            InitLazy = undefined;
+        N when N < 5 ->
+            %% 2 to 4 members, start with a fully connected tree
+            %% with cycles. it will be adjusted as needed
+            Tree = riak_core_util:build_tree(1, Members, [cycles]),
+            InitEagers = orddict:fetch(node(), Tree),
+            InitLazy = lists:nth(random:uniform(N - 2), Members -- [node() | InitEagers]);
+        N ->
+            %% 5 or more members, start with gossip tree used by
+            %% riak_core_gossip. it will be adjusted as needed
+            Tree = riak_core_util:build_tree(2, Members, [cycles]),
+            InitEagers = orddict:fetch(node(), Tree),
+            InitLazy = lists:nth(random:uniform(N - 3), Members -- [node() | InitEagers])
+    end,
+    start_link(InitEagers, InitLazy).
 
 %% @doc Starts the broadcast server on this node. `InitEagers' are the
 %%      initial peers of this node for all broadcast trees. `InitLazy'

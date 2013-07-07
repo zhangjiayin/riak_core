@@ -1,6 +1,6 @@
 -module(riak_core_metadata).
 
--export([put/2, get/1, fetch_broadcast_tree/2]).
+-export([put/2, get/1, get/2, fetch_broadcast_tree/2]).
 
 -include("riak_core_metadata.hrl").
 
@@ -14,6 +14,13 @@ get(Key) ->
     case riak_core_metadata_manager:get(Key) of
         #metadata_v0{values=Values} -> Values;
         NotFound -> NotFound
+    end.
+
+-spec get(metadata_key(), metadata_value()) -> [metadata_value()].
+get(Key, Default) ->
+    case ?MODULE:get(Key) of
+        Result when is_list(Result) -> Result;
+        _ -> [Default]
     end.
 
 -spec fetch_broadcast_tree(node(), [node()]) -> [{node(), {[node()], [node()]}}].

@@ -66,15 +66,9 @@ append_bucket_defaults(Items) when is_list(Items) ->
 set_bucket(Name, BucketProps0) ->
     case validate_props(BucketProps0, riak_core:bucket_validators(), []) of
         {ok, BucketProps} ->
-            F = fun(Ring, _Args) ->
-                        OldBucket = get_bucket(Name),
-                        NewBucket = merge_props(BucketProps, OldBucket),
-                        {new_ring, riak_core_ring:update_meta({bucket,Name},
-                                                              NewBucket,
-                                                              Ring)}
-                end,
-            {ok, _NewRing} = riak_core_ring_manager:ring_trans(F, undefined),
-            ok;
+            OldBucket = get_bucket(Name),
+            NewBucket = merge_props(BucketProps, OldBucket),
+            riak_core_metadata:put({bucket, Name}, NewBucket);
         {error, Details} ->
             lager:error("Bucket validation failed ~p~n", [Details]),
             {error, Details}
@@ -98,7 +92,8 @@ merge_props(Overriding, Other) ->
 %% </pre>
 %%
 get_bucket(Name) ->
-    Meta = riak_core_ring_manager:get_bucket_meta(Name),
+    %% TODO: actually deal w/ conflicts or wait til lww is implemented
+    [Meta | _] = riak_core_metadata:get({bucket, Name}, undefined),
     get_bucket_props(Name, Meta).
 
 %% @spec get_bucket(Name, Ring::riak_core_ring:riak_core_ring()) ->
@@ -113,7 +108,7 @@ get_bucket_props(Name, Meta) ->
         undefined ->
             [{name, Name}
              |app_helper:get_env(riak_core, default_bucket_props)];
-        {ok, Bucket} -> Bucket
+        Bucket -> Bucket
     end.
 
 %% @spec reset_bucket(binary()) -> ok
