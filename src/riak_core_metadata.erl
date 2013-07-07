@@ -18,4 +18,9 @@ get(Key) ->
 
 -spec fetch_broadcast_tree(node(), [node()]) -> [{node(), {[node()], [node()]}}].
 fetch_broadcast_tree(Root, Nodes) ->
-    [{Node, riak_core_metadata_broadcast:debug_get_peers(Node, Root)} || Node <- Nodes].
+    [begin
+         Peers = try riak_core_metadata_broadcast:debug_get_peers(Node, Root)
+                 catch _:_ -> down
+                 end,
+         {Node, Peers} 
+     end || Node <- Nodes].

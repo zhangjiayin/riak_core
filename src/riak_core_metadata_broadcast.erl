@@ -143,6 +143,23 @@ handle_cast({prune, From, Root, Key, VClock, Round}, State) ->
     State1 = ack_outstanding(eager, Key, VClock, Round, From, State),
     State2 = add_lazy(From, Root, State1),
     {noreply, State2};
+handle_cast({graft, Key, VClock, Round, Root, From}, State) ->
+    State1 = ack_outstanding(lazy, Key, VClock, Round, From, State),
+
+    %% TODO: should we add the eager here or should we always add the eager
+    %%       on ack. that way we don't complete the link unless the message
+    %%       is sucessful?
+    State2 = add_eager(From, Root, State1),
+
+    %% TODO: what if vclock is different?
+    %% TODO: refactor
+    case riak_core_metadata_manager:get(Key) of
+        not_found -> ok;
+        Metadata ->
+            %% TODO: mark as outstanding? (see TODO above)
+            send({broadcast, Key, Metadata, Round, Root, node()}, From)
+    end,
+    {noreply, State2};
 handle_cast({ignored_i_have, Key, VClock, Round, From}, State) ->
     State1 = ack_outstanding(lazy, Key, VClock, Round, From, State),
     {noreply, State1}.
@@ -154,6 +171,7 @@ handle_cast({ignored_i_have, Key, VClock, Round, From}, State) ->
                                        {stop, term(), #state{}}.
 handle_info(tick, State) ->
     schedule_tick(),
+    %% TODO: use returned state
     send_outstanding(State),
     {noreply, State};
 handle_info(_Msg, State) ->
@@ -190,12 +208,14 @@ handle_ihave(true, Key, VClock, Round, _Root, From, State) ->
     State;
 handle_ihave(false, Key, VClock, Round, Root, From, State) ->
     %% TODO: instead of grafting immediately we should add to a missing
-    %%       set and use tick to send grafts. this will also reduce message
+    %%       set and use tick to send grafts. this will reduce message
     %%       overhead because we will only try to graft from a single node
     %%       per {Key, VClock} (or perhaps make the number adjustable)
     %%       to not introduce heavier message load when healing (at the cost
     %%       of some convergence time/last-hop time)    
-    send({graft, Key, VClock, Round, node()}, From),
+    %%       Also waiting a period for an in-flight/or pending gossip message
+    %%       improves the situation even more
+    send({graft, Key, VClock, Round, Root, node()}, From),
     add_eager(From, Root, State).
 
      
@@ -244,8 +264,13 @@ ack_outstanding(Type, Key, VClock, Round, From, State=#state{outstanding=All}) -
     State#state{outstanding=UpdatedOutstanding}.
 
 send_outstanding(#state{outstanding=All}) ->
+    %% TODO: change to a fold, for now we don't modify state, 
+    %%       but we may want to add send counts, etc in the future
+    %%       and some functions possibly modify the state (although they
+    %%       really wont) anyways
     [send_outstanding(OutstandingKey, Outstanding) ||
         {OutstandingKey, Outstanding} <- orddict:to_list(All)],
+    %% TODO: return state
     ok.
 
 send_outstanding(OutstandingKey, {OutstandingPeers, Root, Metadata}) ->

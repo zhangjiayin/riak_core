@@ -16,10 +16,9 @@
 -include("riak_core_metadata.hrl").
 
 -define(SERVER, ?MODULE). 
+-define(DETS_TABLE, riak_core_metadata).
 
--record(state, {
-          data :: dict()
-         }).
+-record(state, {}).
 
 %%%===================================================================
 %%% API
@@ -60,7 +59,8 @@ is_stale(Key, VClock) ->
                   ignore |
                   {stop, term()}.
 init([]) ->
-    {ok, #state{data = dict:new()}}.
+    Filename = lists:flatten("metadata-", [node()]),
+    {ok, ?DETS_TABLE} = dets:open_file(?DETS_TABLE, [{file, Filename}]),                                 {ok, #state{}}.
 
 %% @private
 %% @doc Handling call messages
@@ -180,18 +180,19 @@ merge_meta(false,
     #metadata_v0{values = Updated,
                  vclock = MergedVClock}.
 
+vclock_stale(_VClock, not_found) ->
+    false;
 vclock_stale(VClock, #metadata_v0{vclock=Existing}) ->
     vclock:descends(Existing, VClock).
     
-store(Key, Metadata, State=#state{data=Data}) ->
-    NewData = dict:store(Key, Metadata, Data),
-    NewState = State#state{data = NewData},
-    {Metadata, NewState}.
+store(Key, Metadata, State) ->
+    dets:insert(?DETS_TABLE, [{Key, Metadata}]),
+    {Metadata, State}.
         
-read(Key, #state{data=Data}) ->    
-    case dict:find(Key, Data) of
-        {ok, Metadata} -> Metadata;
-        error -> not_found
+read(Key, _State) ->    
+    case dets:lookup(?DETS_TABLE, Key) of
+        [] -> not_found;
+        [{Key, Metadata}] -> Metadata
     end.
 
 
