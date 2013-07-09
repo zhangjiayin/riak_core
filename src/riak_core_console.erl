@@ -24,7 +24,7 @@
          stage_force_replace/1, print_staged/1, commit_staged/1,
          clear_staged/1, transfer_limit/1, pending_claim_percentage/2,
          pending_nodes_and_claim_percentages/1, transfers/1, add_user/1,
-         add_source/1, grant/1, print_users/1, print_sources/1]).
+         add_source/1, grant/1, revoke/1, print_users/1, print_sources/1]).
 
 %% @doc Return list of nodes, current and future claim.
 pending_nodes_and_claim_percentages(Ring) ->
@@ -858,6 +858,25 @@ grant([Grants, "ON", Bucket, "TO", Users]) ->
 grant(_) ->
     io:format("Usage: grant <permissions> ON <bucket> TO <users>"),
     error.
+
+revoke([Grants, "ON", Bucket, "FROM", Users]) ->
+    Unames = case string:tokens(Users, ",") of
+        ["all"] ->
+            all;
+        Other ->
+            Other
+    end,
+    Permissions = case string:tokens(Grants, ",") of
+        ["all"] ->
+            all;
+        Other2 ->
+            Other2
+    end,
+    riak_core_security:add_revoke(Unames, Bucket, Permissions);
+revoke(_) ->
+    io:format("Usage: revoke <permissions> ON <bucket> FROM <users>"),
+    error.
+
 
 print_users([]) ->
     riak_core_security:print_users().
