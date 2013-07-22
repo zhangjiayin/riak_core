@@ -405,14 +405,6 @@ vnode_resize_command(Sender, Request, FutureIndex,
     end.
 
 
-active(timeout, State=#state{mod=Mod, index=Idx}) ->
-    riak_core_vnode_manager:vnode_event(Mod, Idx, self(), inactive),
-    continue(State);
-active(?COVERAGE_REQ{keyspaces=KeySpaces,
-                     request=Request,
-                     sender=Sender}, State) ->
-    %% Coverage request handled in handoff and non-handoff.  Will be forwarded if set.
-    vnode_coverage(Sender, Request, KeySpaces, State);
 active(?VNODE_REQ{sender=Sender, request={resize_forward, Request}}, State) ->
     vnode_command(Sender, Request, State);
 active(?VNODE_REQ{sender=Sender, request=Request},
@@ -444,6 +436,14 @@ active(?VNODE_REQ{sender=Sender, request=Request},
     end;
 active(?VNODE_REQ{sender=Sender, request=Request},State) ->
     vnode_handoff_command(Sender, Request, State#state.handoff_target, State);
+active(timeout, State=#state{mod=Mod, index=Idx}) ->
+    riak_core_vnode_manager:vnode_event(Mod, Idx, self(), inactive),
+    continue(State);
+active(?COVERAGE_REQ{keyspaces=KeySpaces,
+                     request=Request,
+                     sender=Sender}, State) ->
+    %% Coverage request handled in handoff and non-handoff.  Will be forwarded if set.
+    vnode_coverage(Sender, Request, KeySpaces, State);
 active(handoff_complete, State) ->
     State2 = start_manager_event_timer(handoff_complete, State),
     continue(State2);
@@ -645,6 +645,8 @@ mark_delete_complete(Idx, Mod) ->
                []),
     Result.
 
+handle_event(R=?VNODE_REQ{}, _StateName, State) ->
+    active(R, State);
 handle_event({set_forwarding, undefined}, _StateName,
              State=#state{modstate={deleted, _ModState}}) ->
     %% The vnode must forward requests when in the deleted state, therefore
@@ -694,8 +696,6 @@ handle_event(trigger_delete, _StateName, State=#state{modstate={deleted,_}}) ->
     continue(State);
 handle_event(trigger_delete, _StateName, State) ->
     active(trigger_delete, State);
-handle_event(R=?VNODE_REQ{}, _StateName, State) ->
-    active(R, State);
 handle_event(R=?COVERAGE_REQ{}, _StateName, State) ->
     active(R, State).
 
