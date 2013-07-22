@@ -60,6 +60,10 @@
 -export([counter_loop/1,incr_counter/1,decr_counter/1]).
 -endif.
 
+%% 719528 days from Jan 1, 0 to Jan 1, 1970
+%%  *86400 seconds/day
+-define(SEC_TO_EPOCH, 62167219200).
+
 %% R14 Compatibility
 -compile({no_auto_import,[integer_to_list/2]}).
 
@@ -71,7 +75,9 @@
 %% @doc Get the current "moment".  Current implementation is the
 %%      number of seconds from year 0 to now, universal time, in
 %%      the gregorian calendar.
-moment() -> calendar:datetime_to_gregorian_seconds(calendar:universal_time()).
+moment() -> 
+    {Mega, Sec, _Micro} = os:timestamp(),
+    (Mega * 1000000) + Sec + ?SEC_TO_EPOCH.
 
 %% @spec compare_dates(string(), string()) -> boolean()
 %% @doc Compare two RFC1123 date strings or two now() tuples (or one
@@ -84,10 +90,6 @@ compare_dates(A, B) when is_list(A) ->
     compare_dates(rfc1123_to_now(A), B);
 compare_dates(A, B) when is_list(B) ->
     compare_dates(A, rfc1123_to_now(B)).
-
-%% 719528 days from Jan 1, 0 to Jan 1, 1970
-%%  *86400 seconds/day
--define(SEC_TO_EPOCH, 62167219200).
 
 rfc1123_to_now(String) when is_list(String) ->
     GSec = calendar:datetime_to_gregorian_seconds(
