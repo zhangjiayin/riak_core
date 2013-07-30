@@ -36,6 +36,7 @@
              riak_core_eventhandler_sup,
              riak_core_format,
              riak_core_gossip,
+             riak_core_inet,
              riak_core_handoff_listener,
              riak_core_handoff_listener_sup,
              riak_core_handoff_manager,
