@@ -26,6 +26,7 @@
          cidr_len/1,
          determine_netmask_len/2,
          get_matching_address/3,
+         get_matching_address/4,
          is_rfc1918/1,
          mask_address/2,
          normalize_ip/1,
@@ -139,6 +140,15 @@ is_rfc1918(IP) ->
 get_matching_address(IP, CIDR, Listener) ->
     {ok, MyIPs} = inet:getifaddrs(),
     get_matching_address(IP, CIDR, MyIPs, Listener).
+
+get_matching_address(_, _, _, []) -> undefined;
+get_matching_address(IP, CIDR, MyIPs, [Listener|Tail]) ->
+    case get_matching_address(IP, CIDR, MyIPs, Listener) of
+        undefined ->
+            get_matching_address(IP, CIDR, MyIPs, Tail);
+        Result ->
+            Result
+    end;
 
 get_matching_address(IP, CIDR, MyIPs, {RawListenIP, Port}) ->
     {ok, ListenIP} = normalize_ip(RawListenIP),
@@ -434,7 +444,20 @@ get_matching_address_test_() ->
                Res = get_matching_address({8, 8, 8, 8}, 24, Addrs, {{192, 168, 1, 1},9096}),
                ?assertEqual(undefined, Res)
        end
-      }
+      },
+      {"list of ip/port pairs for listeners",
+       fun() ->
+               Addrs = make_ifaddrs([{"eth0",
+                                      [{addr, {8, 0, 8, 8}},
+                                       {netmask, {255, 255, 255, 0}}]},
+                                     {"eth1",
+                                      [{addr, {64, 172, 243, 100}},
+                                       {netmask, {255, 255, 255, 0}}]}
+                                    ]),
+               Listeners = [{{12, 24, 36, 8},9096}, {{0,0,0,0}, 10020}],
+               Res = get_matching_address({64, 8, 8, 1}, 24, Addrs, Listeners),
+               ?assertEqual({{12,24,36,8},9096}, Res)
+       end}
      ]}.
 
 determine_netmask_test_() ->
