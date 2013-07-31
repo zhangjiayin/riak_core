@@ -43,7 +43,7 @@
 
 -type maybe(T) :: T | undefined.
 -type ip_address() :: inet:ip_address().
--type portnum() :: non_neg_integer().
+-type portnum() :: inet:port_number().
 -type binding() :: {ip_address(), portnum()}.
 -type cidr() :: non_neg_integer().
 
@@ -169,7 +169,6 @@ get_matching_address(IP, CIDR, MyIPs, [Listener|Tail]) ->
         Result ->
             Result
     end;
-
 get_matching_address(IP, CIDR, MyIPs, {RawListenIP, Port}) ->
     {ok, ListenIP} = normalize_ip(RawListenIP),
     case ListenIP of
@@ -180,6 +179,7 @@ get_matching_address(IP, CIDR, MyIPs, {RawListenIP, Port}) ->
             get_matching_by_class(IP, ListenIP, Port)
     end.
 
+%% @doc Finds a matching binding within all interfaces.
 -spec get_matching_bindall(ip_address(), cidr(), [ifaddr()], portnum()) ->
                                   maybe(binding()).
 get_matching_bindall(IP, CIDR, MyIPs, Port) ->
@@ -192,23 +192,54 @@ get_matching_bindall(IP, CIDR, MyIPs, Port) ->
             find_best_ip(MyIPs, IP, Port, CIDR, RFCCIDR)
     end.
 
+%% @doc Returns a binding based on address-class matching.
 -spec get_matching_by_class(ip_address(), ip_address(), portnum()) ->
                                    maybe(binding()).
 get_matching_by_class(IP, ListenIP, Port) ->
-    case is_rfc1918(IP) == is_rfc1918(ListenIP) of
+    class_match_or_default(IP, ListenIP, Port, undefined).
+
+%% @doc Returns {ListenIP, Port} if the passed addresses match by
+%%     class, or the passed default.
+class_match_or_default(IP, ListenIP, Port, Default) ->
+    case class_matches(IP, ListenIP) of
         true ->
-            %% Both addresses are either internal or external.
-            %% We'll have to assume the user knows what they're
-            %% doing
-            lager:debug("returning specific listen IP ~p",
-                        [ListenIP]),
             {ListenIP, Port};
         false ->
-            %% we should never get here if things are configured right
-            lager:warning("NAT detected, do you need to define a"
-                          " nat-map?"),
-            undefined
+            Default
     end.
+
+%% @doc Whether both addresses are either RFC1918 addresses or both
+%%      public.
+-spec class_matches(ip_address(), ip_address()) -> boolean().
+class_matches(IP, ListenIP) ->
+    is_rfc1918(IP) == is_rfc1918(ListenIP).
+
+%% @doc Returns a {ListenIP, Port} if the masked addresses match, or
+%%      the passed default.
+-spec mask_match_or_default(ip_address(), ip_address(), cidr(),
+                            portnum(), maybe(binding()))
+                            -> maybe(binding()).
+mask_match_or_default(IP, ListenIP, CIDR, Port, Default) ->
+    case mask_matches(IP, ListenIP, CIDR) of
+        true ->
+            %% 172.16/12 is a pain in the ass
+            class_match_or_default(IP, ListenIP, Port, Default);
+        false ->
+            Default
+    end.
+
+%% @doc Whether the given addresses match when masked by the same
+%%      amount.
+-spec mask_matches(ip_address(), ip_address(), cidr()) -> boolean().
+mask_matches(IP1, IP2, CIDR) ->
+    mask_address(IP1, CIDR) == mask_address(IP2, CIDR).
+
+%% @doc Filters interface bindings to IPv4 addresses and netmasks only.
+-spec get_bindings_v4([ifopt()]) -> [{addr | netmask, inet:ip4_address()}].
+get_bindings_v4(Attrs) ->
+    [ Tuple || {Type, Addr}=Tuple <- Attrs,
+               (addr == Type orelse netmask == Type),
+               is_tuple(Addr) andalso 4 == tuple_size(Addr) ].
 
 %% @doc Finds the best-matching host address for the given address
 %%      among the list of interfaces.
@@ -222,31 +253,9 @@ find_best_ip(MyIPs, MyIP, Port, MyCIDR, MaxDepth) when MyCIDR < MaxDepth ->
                   [inet_parse:ntoa(MyIP), MyCIDR]),
     %% when guessing, never guess loopback!
     FixedIPs = lists:keydelete("lo", 1, MyIPs),
-    Res = lists:foldl(fun({_IF, Attrs}, Acc) ->
-                              V4Attrs = lists:filter(fun({addr, {_, _, _, _}}) ->
-                                                             true;
-                                                        ({netmask, {_, _, _, _}}) ->
-                                                             true;
-                                                        (_) ->
-                                                             false
-                                                     end, Attrs),
-                              case V4Attrs of
-                                  [] ->
-                                      lager:debug("no valid IPs for ~s", [_IF]),
-                                      Acc;
-                                  _ ->
-                                      lager:debug("IPs for ~s : ~p", [_IF, V4Attrs]),
-                                      IP = proplists:get_value(addr, V4Attrs),
-                                      case is_rfc1918(MyIP) == is_rfc1918(IP) of
-                                          true ->
-                                              lager:debug("wildly guessing that  ~p is close"
-                                                          "to ~p", [IP, MyIP]),
-                                              {IP, Port};
-                                          false ->
-                                              Acc
-                                      end
-                              end
-                      end, undefined, FixedIPs),
+    Res =  fold_ifs_for_match(fun(IP, Default) ->
+                                      class_match_or_default(MyIP, IP, Port, Default)
+                              end, FixedIPs),
     case Res of
         undefined ->
             lager:warning("Unable to guess an appropriate local IP to match"
@@ -259,42 +268,9 @@ find_best_ip(MyIPs, MyIP, Port, MyCIDR, MaxDepth) when MyCIDR < MaxDepth ->
     end;
 
 find_best_ip(MyIPs, MyIP, Port, MyCIDR, MaxDepth) ->
-    Res = lists:foldl(fun({_IF, Attrs}, Acc) ->
-                              V4Attrs = lists:filter(fun({addr, {_, _, _, _}}) ->
-                                                             true;
-                                                        ({netmask, {_, _, _, _}}) ->
-                                                             true;
-                                                        (_) ->
-                                                             false
-                                                     end, Attrs),
-                              case V4Attrs of
-                                  [] ->
-                                      lager:debug("no valid IPs for ~s", [_IF]),
-                                      Acc;
-                                  _ ->
-                                      lager:debug("IPs for ~s : ~p", [_IF, V4Attrs]),
-                                      IP = proplists:get_value(addr, V4Attrs),
-                                      case {mask_address(IP, MyCIDR),
-                                            mask_address(MyIP, MyCIDR)}  of
-                                          {Mask, Mask} ->
-                                              %% the 172.16/12 is a pain in the ass
-                                              case is_rfc1918(IP) == is_rfc1918(MyIP) of
-                                                  true ->
-                                                      lager:debug("matched IP ~p for ~p", [IP,
-                                                                                           MyIP]),
-                                                      {IP, Port};
-                                                  false ->
-                                                      Acc
-                                              end;
-                                          {_A, _B} ->
-                                              lager:debug("IP ~p with CIDR ~p masked as ~p",
-                                                          [IP, MyCIDR, _A]),
-                                              lager:debug("IP ~p with CIDR ~p masked as ~p",
-                                                          [MyIP, MyCIDR, _B]),
-                                              Acc
-                                      end
-                              end
-                      end, undefined, MyIPs),
+    Res = fold_ifs_for_match(fun(IP, Default) ->
+                                     mask_match_or_default(MyIP, IP, MyCIDR, Port, Default)
+                             end, MyIPs),
     case Res of
         undefined ->
             %% Increase the search depth and retry, this will decrement the
@@ -304,6 +280,16 @@ find_best_ip(MyIPs, MyIP, Port, MyCIDR, MaxDepth) ->
             Res
     end.
 
+-spec fold_ifs_for_match(fun((ip_address(), maybe(binding())) -> maybe(binding())), [ifaddr()]) -> maybe(binding()).
+fold_ifs_for_match(Matcher, IFs) ->
+    lists:foldl(fun({_IF, Attrs}, Acc) ->
+                        case get_bindings_v4(Attrs) of
+                            [] ->
+                                Acc;
+                            [{addr, IP}|_] ->
+                                Matcher(IP, Acc)
+                        end
+                end, undefined, IFs).
 
 -ifdef(TEST).
 
