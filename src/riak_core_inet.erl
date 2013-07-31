@@ -42,8 +42,23 @@
 -define(is_address(A), is_tuple(A) andalso (tuple_size(A) == 4 orelse tuple_size(A) == 8)).
 
 
+-type ip_address() :: inet:ip_address().
+-type binding() :: {ip_address(), non_neg_integer()}.
+-type cidr() :: non_neg_integer().
+
+%% Not sure why inet doesn't define these types directly.
+-type ifflag() :: up | broadcast | loopback | pointtopoint | running | multicast.
+-type ifopt() ::
+        {flag, [ifflag()]} |
+        {addr, ip_address()} |
+        {netmask, ip_address()} |
+        {broadaddr, ip_address()} |
+        {dstaddr, ip_address()} |
+        {hwaddr, [byte()]}.
+-type ifaddr() :: {string(), [ifopt()]}.
+
 %% Returns true if the IP address given is a valid host IP address
--spec valid_host_ip(string() | inet:ip_address()) -> boolean().
+-spec valid_host_ip(string() | ip_address()) -> boolean().
 valid_host_ip(IP) ->
     {ok, IFs} = inet:getifaddrs(),
     {ok, NormIP} = normalize_ip(IP),
@@ -52,7 +67,7 @@ valid_host_ip(IP) ->
               end, IFs).
 
 %% @doc Convert IP address the tuple form
--spec normalize_ip(string() | inet:ip_address()) -> {ok, tuple()}.
+-spec normalize_ip(string() | ip_address()) -> {ok, tuple()}.
 normalize_ip(IP) when is_list(IP) ->
     inet_parse:address(IP);
 normalize_ip(IP) when ?is_address(IP) ->
@@ -64,7 +79,7 @@ normalize_ip(_) ->
 %% @doc Given the result of inet:getifaddrs() and an IP a client has
 %%      connected to, attempt to determine the appropriate subnet mask.  If
 %%      the IP the client connected to cannot be found, undefined is returned.
--spec determine_netmask_len(Ifaddrs :: [{atom(), any()}], SeekIP :: string() | inet:ip_address()) -> 'undefined' | pos_integer().
+-spec determine_netmask_len(Ifaddrs :: [{atom(), any()}], SeekIP :: string() | ip_address()) -> 'undefined' | pos_integer().
 determine_netmask_len(Ifaddrs, SeekIP) when is_list(SeekIP) ->
     {ok, NormIP} = normalize_ip(SeekIP),
     determine_netmask_len(Ifaddrs, NormIP);
@@ -85,7 +100,7 @@ find_addr_netmask([{addr, NormIP}, {netmask, NM}|_Tail], NormIP) ->
 find_addr_netmask([_|Tail], NormIP) ->
     find_addr_netmask(Tail, NormIP).
 
--spec addr_to_binary(inet:ip_address()) -> binary().
+-spec addr_to_binary(ip_address()) -> binary().
 addr_to_binary({A,B,C,D}) ->
     <<A:8,B:8,C:8,D:8>>;
 addr_to_binary({A,B,C,D,E,F,G,H}) ->
@@ -101,7 +116,7 @@ cidr_len(<<1:1, Rest/bits>>, Acc) -> cidr_len(Rest, Acc + 1).
 
 %% @doc Get the subnet mask as an integer, stolen from an old post on
 %%      erlang-questions.
--spec mask_address(inet:ip_address(), non_neg_integer()) -> non_neg_integer().
+-spec mask_address(ip_address(), non_neg_integer()) -> non_neg_integer().
 mask_address(Addr, Maskbits) when ?is_address(Addr) ->
     <<Subnet:Maskbits, _Host/bitstring>> = addr_to_binary(Addr),
     Subnet.
@@ -137,10 +152,14 @@ is_rfc1918(IP) ->
 %%      just try to find anything that matches the IP's RFC 1918 status (ie.
 %%      public or private). Localhost will never be 'guessed', but it can be
 %%      directly matched.
+-spec get_matching_address(ip_address(), cidr(), binding() | [binding()]) ->
+                                  undefined | binding().
 get_matching_address(IP, CIDR, Listener) ->
     {ok, MyIPs} = inet:getifaddrs(),
     get_matching_address(IP, CIDR, MyIPs, Listener).
 
+-spec get_matching_address(ip_address(), cidr(), [ifaddr()], binding() | [binding()]) ->
+                                  undefined | binding().
 get_matching_address(_, _, _, []) -> undefined;
 get_matching_address(IP, CIDR, MyIPs, [Listener|Tail]) ->
     case get_matching_address(IP, CIDR, MyIPs, Listener) of
@@ -160,6 +179,8 @@ get_matching_address(IP, CIDR, MyIPs, {RawListenIP, Port}) ->
             get_matching_by_class(IP, ListenIP, Port)
     end.
 
+-spec get_matching_bindall(ip_address(), cidr(), [ifaddr()], non_neg_integer()) ->
+                                  undefined | binding().
 get_matching_bindall(IP, CIDR, MyIPs, Port) ->
     case rfc1918(IP) of
         false ->
@@ -170,6 +191,8 @@ get_matching_bindall(IP, CIDR, MyIPs, Port) ->
             find_best_ip(MyIPs, IP, Port, CIDR, RFCCIDR)
     end.
 
+-spec get_matching_by_class(ip_address(), ip_address(), non_neg_integer()) ->
+                                   undefined | binding().
 get_matching_by_class(IP, ListenIP, Port) ->
     case is_rfc1918(IP) == is_rfc1918(ListenIP) of
         true ->
