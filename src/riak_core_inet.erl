@@ -139,12 +139,7 @@ rfc1918(_) ->
 
 %% true/false if IP is RFC1918
 is_rfc1918(IP) ->
-    case rfc1918(IP) of
-        false ->
-            false;
-        _ ->
-            true
-    end.
+    is_integer(rfc1918(IP)).
 
 %% @doc Find the right address to serve given the IP the node connected to.
 %%      Ideally, it will choose an IP in the same subnet, but it will fall
@@ -172,7 +167,7 @@ get_matching_address(IP, CIDR, MyIPs, [Listener|Tail]) ->
 get_matching_address(IP, CIDR, MyIPs, {RawListenIP, Port}) ->
     {ok, ListenIP} = normalize_ip(RawListenIP),
     case ListenIP of
-        BindAll when BindAll == {0, 0, 0, 0} orelse
+        BindAll when BindAll == {0,0,0,0} orelse
                      BindAll == {0,0,0,0,0,0,0,0} ->
             get_matching_bindall(IP, CIDR, MyIPs, Port);
         _ ->
