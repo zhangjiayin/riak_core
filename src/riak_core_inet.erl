@@ -41,9 +41,10 @@
 %% IPv4 addresses are 4-tuples, IPv6 are 8-tuples
 -define(is_address(A), is_tuple(A) andalso (tuple_size(A) == 4 orelse tuple_size(A) == 8)).
 
-
+-type maybe(T) :: T | undefined.
 -type ip_address() :: inet:ip_address().
--type binding() :: {ip_address(), non_neg_integer()}.
+-type portnum() :: non_neg_integer().
+-type binding() :: {ip_address(), portnum()}.
 -type cidr() :: non_neg_integer().
 
 %% Not sure why inet doesn't define these types directly.
@@ -67,7 +68,7 @@ valid_host_ip(IP) ->
               end, IFs).
 
 %% @doc Convert IP address the tuple form
--spec normalize_ip(string() | ip_address()) -> {ok, tuple()}.
+-spec normalize_ip(string() | ip_address()) -> {ok, ip_address()}.
 normalize_ip(IP) when is_list(IP) ->
     inet_parse:address(IP);
 normalize_ip(IP) when ?is_address(IP) ->
@@ -79,7 +80,7 @@ normalize_ip(_) ->
 %% @doc Given the result of inet:getifaddrs() and an IP a client has
 %%      connected to, attempt to determine the appropriate subnet mask.  If
 %%      the IP the client connected to cannot be found, undefined is returned.
--spec determine_netmask_len(Ifaddrs :: [{atom(), any()}], SeekIP :: string() | ip_address()) -> 'undefined' | pos_integer().
+-spec determine_netmask_len(Ifaddrs :: [ifaddr()], SeekIP :: string() | ip_address()) -> maybe(pos_integer()).
 determine_netmask_len(Ifaddrs, SeekIP) when is_list(SeekIP) ->
     {ok, NormIP} = normalize_ip(SeekIP),
     determine_netmask_len(Ifaddrs, NormIP);
@@ -93,6 +94,7 @@ determine_netmask_len([{_If, Attrs} | Tail], NormIP) ->
             determine_netmask_len(Tail, NormIP)
     end.
 
+-spec find_addr_netmask([ifopt()], ip_address()) -> maybe(ip_address()).
 find_addr_netmask([], _) ->
     undefined;
 find_addr_netmask([{addr, NormIP}, {netmask, NM}|_Tail], NormIP) ->
@@ -100,13 +102,15 @@ find_addr_netmask([{addr, NormIP}, {netmask, NM}|_Tail], NormIP) ->
 find_addr_netmask([_|Tail], NormIP) ->
     find_addr_netmask(Tail, NormIP).
 
+%% @doc Turns an IP address tuple into its equivalent binary format.
 -spec addr_to_binary(ip_address()) -> binary().
 addr_to_binary({A,B,C,D}) ->
     <<A:8,B:8,C:8,D:8>>;
 addr_to_binary({A,B,C,D,E,F,G,H}) ->
     <<A:16,B:16,C:16,D:16,E:16,F:16,G:16,H:16>>.
 
--spec cidr_len(binary()) -> non_neg_integer().
+%% @doc Given a netmask as a binary, return the CIDR length.
+-spec cidr_len(binary()) -> cidr().
 cidr_len(Bin) ->
     cidr_len(Bin, 0).
 
@@ -116,12 +120,13 @@ cidr_len(<<1:1, Rest/bits>>, Acc) -> cidr_len(Rest, Acc + 1).
 
 %% @doc Get the subnet mask as an integer, stolen from an old post on
 %%      erlang-questions.
--spec mask_address(ip_address(), non_neg_integer()) -> non_neg_integer().
+-spec mask_address(ip_address(), cidr()) -> non_neg_integer().
 mask_address(Addr, Maskbits) when ?is_address(Addr) ->
     <<Subnet:Maskbits, _Host/bitstring>> = addr_to_binary(Addr),
     Subnet.
 
-%% return RFC1918 mask for IP or false if not in RFC1918 range
+%% @doc return RFC1918 mask for IP or false if not in RFC1918 range
+-spec rfc1918(ip_address()) -> pos_integer() | false.
 rfc1918({10, _, _, _}) ->
     8;
 rfc1918({192,168, _, _}) ->
@@ -138,6 +143,7 @@ rfc1918(_) ->
     false.
 
 %% true/false if IP is RFC1918
+-spec is_rfc1918(ip_address()) -> boolean().
 is_rfc1918(IP) ->
     is_integer(rfc1918(IP)).
 
@@ -148,13 +154,13 @@ is_rfc1918(IP) ->
 %%      public or private). Localhost will never be 'guessed', but it can be
 %%      directly matched.
 -spec get_matching_address(ip_address(), cidr(), binding() | [binding()]) ->
-                                  undefined | binding().
+                                  maybe(binding()).
 get_matching_address(IP, CIDR, Listener) ->
     {ok, MyIPs} = inet:getifaddrs(),
     get_matching_address(IP, CIDR, MyIPs, Listener).
 
 -spec get_matching_address(ip_address(), cidr(), [ifaddr()], binding() | [binding()]) ->
-                                  undefined | binding().
+                                  maybe(binding()).
 get_matching_address(_, _, _, []) -> undefined;
 get_matching_address(IP, CIDR, MyIPs, [Listener|Tail]) ->
     case get_matching_address(IP, CIDR, MyIPs, Listener) of
@@ -174,8 +180,8 @@ get_matching_address(IP, CIDR, MyIPs, {RawListenIP, Port}) ->
             get_matching_by_class(IP, ListenIP, Port)
     end.
 
--spec get_matching_bindall(ip_address(), cidr(), [ifaddr()], non_neg_integer()) ->
-                                  undefined | binding().
+-spec get_matching_bindall(ip_address(), cidr(), [ifaddr()], portnum()) ->
+                                  maybe(binding()).
 get_matching_bindall(IP, CIDR, MyIPs, Port) ->
     case rfc1918(IP) of
         false ->
@@ -186,8 +192,8 @@ get_matching_bindall(IP, CIDR, MyIPs, Port) ->
             find_best_ip(MyIPs, IP, Port, CIDR, RFCCIDR)
     end.
 
--spec get_matching_by_class(ip_address(), ip_address(), non_neg_integer()) ->
-                                   undefined | binding().
+-spec get_matching_by_class(ip_address(), ip_address(), portnum()) ->
+                                   maybe(binding()).
 get_matching_by_class(IP, ListenIP, Port) ->
     case is_rfc1918(IP) == is_rfc1918(ListenIP) of
         true ->
@@ -204,6 +210,10 @@ get_matching_by_class(IP, ListenIP, Port) ->
             undefined
     end.
 
+%% @doc Finds the best-matching host address for the given address
+%%      among the list of interfaces.
+-spec find_best_ip([ifaddr()], ip_address(), portnum(), cidr(), cidr()) ->
+                          maybe(binding()).
 find_best_ip(MyIPs, MyIP, Port, MyCIDR, MaxDepth) when MyCIDR < MaxDepth ->
     %% CIDR is now too small to meaningfully return a result
     %% blindly return *anything* that is close, I guess?
