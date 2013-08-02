@@ -31,6 +31,13 @@
 -compile(export_all).
 -endif.
 
+-type ipv6_class() :: loopback | unspecified | {ipv4_mapped, binary()} |
+                      {ipv4_compatible, binary()} | {link_local, binary()} |
+                      {site_local, bitstring(), binary()} |
+                      {documentation, binary()} | {'6to4', binary()} |
+                      {orchid, binary()} | {multicast, atom(), atom(), binary()} |
+                      {global, binary()}.
+
 -export([
          classify_address/1
         ]).
@@ -39,6 +46,7 @@
 %%      the topic. This will return an atom (in the case of singleton
 %%      addresses) or a tuple where the first element is atom of the
 %%      class name.
+-spec classify_address(string() | binary() | inet:ipv6_address()) -> ipv6_class().
 classify_address(Addr) when is_list(Addr) ->
     {ok, Tuple} = inet_parse:address(Addr),
     classify_address(Tuple);
@@ -281,13 +289,13 @@ gen_link_local() ->
 
 gen_site_local() ->
     ?LET(<<A:6,B:16,C:16,D:16,E:16,F:16,G:16,H:16>>, bitstring(118),
-        ?F("~.16B:~.16B:~.16B:~.16B:~.16B:~.16B:~.16B:~.16B", 
+        ?F("~.16B:~.16B:~.16B:~.16B:~.16B:~.16B:~.16B:~.16B",
            [16#fec0+A, B, C, D, E, F, G, H])).
 
 gen_unique_local() ->
     ?LET(<<A:8,B:16,C:16,D:16,E:16,F:16,G:16,H:16>>,
          bitstring(120),
-         ?F(?FULLADDR, 
+         ?F(?FULLADDR,
             [16#fd00+A, B, C, D, E, F, G, H])).
 
 gen_doc() ->
@@ -296,11 +304,11 @@ gen_doc() ->
          ?F("2001:DB8:~.16B:~.16B:~.16B:~.16B:~.16B:~.16B", Parts)).
 
 gen_6to4() ->
-    ?LET(Parts, vector(7,choose(0,65535)), 
+    ?LET(Parts, vector(7,choose(0,65535)),
          ?F("2002:~.16B:~.16B:~.16B:~.16B:~.16B:~.16B:~.16B",Parts)).
 
-gen_teredo() ->    
-    ?LET(Parts, vector(6, choose(0,65535)), 
+gen_teredo() ->
+    ?LET(Parts, vector(6, choose(0,65535)),
          ?F("2001:0:~.16B:~.16B:~.16B:~.16B:~.16B:~.16B", Parts)).
 
 gen_orchid() ->
@@ -317,13 +325,13 @@ gen_multicast() ->
 
 gen_global() ->
     ?SUCHTHAT(B,
-              binary(16),              
-              not ( 
+              binary(16),
+              not (
                 %% unspecified
                 <<0:128>> == B orelse
                 %% loopback
                 <<1:128>> == B orelse
-                %% ipv4 mapped              
+                %% ipv4 mapped
                 ?TRYMATCH(<<16#ffff:96,_/bits>>, B) orelse
                 %% ipv4 compatible
                 ?TRYMATCH(<<0:96,_/bits>>, B) orelse
