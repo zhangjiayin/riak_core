@@ -39,8 +39,34 @@
                       {global, binary()}.
 
 -export([
-         classify_address/1
+         classify_address/1,
+         maybe_routable/2
         ]).
+
+%% @doc Guesses whether two addresses are routable based on their
+%%      address class and configuration. Even if this returns true,
+%%      two addresses may not be routable, additional information will
+%%      need to be checked.
+%% @end
+-spec maybe_routable(ipv6_class(), ipv6_class()) -> boolean().
+%% Loopback is only routable with itself.
+maybe_routable(loopback, loopback) -> true;
+maybe_routable(_, loopback) -> false;
+maybe_routable(loopback, _) -> false;
+%% Link-local are only routable to the same address
+maybe_routable({link_local, A}, {link_local, A}) -> true;
+maybe_routable({link_local, _}, _) -> false;
+maybe_routable(_, {link_local,_}) -> false;
+%% Unique-local addresses are only within an organization, not across
+%% the Internet. They should only be routable to other unique-local
+%% addresses.
+maybe_routable({unique_local,_,_,_},{unique_local,_,_,_}) -> true;
+maybe_routable({unique_local,_,_,_}, _) -> false;
+maybe_routable(_, {unique_local,_,_,_}) -> false;
+maybe_routable(_,_) ->
+    %% At this point, we don't know any other restrictions, we have to
+    %% guess true.
+     true.
 
 %% @doc Classifies an IPv6 address according to the numerous RFCs on
 %%      the topic. This will return an atom (in the case of singleton
