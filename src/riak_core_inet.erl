@@ -252,10 +252,11 @@ find_best_ip(MyIPs, MyIP, Port, MyCIDR, MaxDepth) when MyCIDR < MaxDepth ->
                   "trying to guess one.",
                   [inet_parse:ntoa(MyIP), MyCIDR]),
     %% when guessing, never guess loopback!
-    FixedIPs = lists:keydelete("lo", 1, MyIPs),
-    Res =  fold_ifs_for_match(fun(IP, Default) ->
-                                      class_match_or_default(MyIP, IP, Port, Default)
-                              end, FixedIPs),
+    %% Loopback interfaces could be "lo", or "lo0", "lo1", etc.
+    FixedIPs = lists:filter(fun({[$l,$o|_], _}) -> false; (_) -> true end, MyIPs),
+    Res = fold_ifs_for_match(fun(IP, Default) ->
+                                     class_match_or_default(MyIP, IP, Port, Default)
+                             end, FixedIPs),
     case Res of
         undefined ->
             lager:warning("Unable to guess an appropriate local IP to match"
