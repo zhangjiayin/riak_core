@@ -1,4 +1,4 @@
-# Riak Core
+# Riak Core 
 
 [![Build Status](https://secure.travis-ci.org/basho/riak_core.png)](http://travis-ci.org/basho/riak_core)
 
