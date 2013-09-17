@@ -48,6 +48,11 @@ node_list() ->
 key() -> elements([k1, k2, k3, k4, k5]).
 val() -> elements([v1, v2, v3, v4, v5]).
 msg() -> {key(), val()}.
+key_context(Key, NodeContext) ->
+    case lists:keyfind(Key, 1, NodeContext) of
+        false -> undefined;
+        {Key, Ctx} -> Ctx
+    end.
 
 gen_peers(Node, Nodes) ->
   case length(Nodes) of
@@ -97,6 +102,9 @@ broadcast_obj(Key, Val) -> {Key, Val}.
 get_view(Node) ->
   rpc:call(mk_node(Node), ?MANAGER, stop, []).
 
+context(_Obj) ->
+    ok. %% context doesn't matter for mock manager
+
 -else.
 
 -define(MANAGER, riak_core_metadata_manager).
@@ -106,6 +114,10 @@ get_view(Node) ->
 
 start_manager(Node) ->
   Dir = atom_to_list(Node),
+  case length(Dir) of
+      0 -> exit(no_dir); %% make sure we don't do something stupid below
+      _ -> ok
+  end,
   os:cmd("mkdir " ++ Dir),
   os:cmd("rm " ++ Dir ++ "/*"),
   (catch exit(whereis(?MANAGER), kill)),
@@ -133,6 +145,10 @@ iterate(It, Acc) ->
     true  -> lists:reverse(Acc);
     false -> iterate(?MANAGER:iterate(It), [?MANAGER:iterator_value(It)|Acc])
   end.
+
+context(Obj) ->
+    riak_core_metadata_object:context(Obj).
+
 -endif.
 
 %% -- Commands ---------------------------------------------------------------
@@ -168,7 +184,7 @@ start_server(Node, Eager, Lazy, Names) ->
   end.
 
 init_next(S, _, [Names, _]) ->
-  S#state{ nodes  = [ #node{ name = Name } || {Name, _} <- Names ] }.
+  S#state{ nodes  = [ #node{ name = Name, context = [] } || {Name, _} <- Names ] }.
 
 %% -- broadcast --
 broadcast_pre(S) -> S#state.nodes /= [].
@@ -177,18 +193,20 @@ broadcast_pre(S, [Node, _, _, _]) -> lists:keymember(Node, #node.name, S#state.n
 broadcast_args(S) ->
   ?LET({{Key, Val}, #node{name = Name, context = Context}},
        {msg(), elements(S#state.nodes)},
-    [Name, Key, Val, Context]).
+    [Name, Key, Val, key_context(Key, Context)]).
 
 broadcast(Node, Key0, Val0, Context) ->
-  Key = mk_key(Key0),
-  event_logger:event({put, Node, Key0, Val0, Context}),
-  Val = rpc:call(mk_node(Node), ?MANAGER, put, put_arguments(Node, Key, Context, Val0)),
-  rpc:call(mk_node(Node), riak_core_broadcast, broadcast, [broadcast_obj(Key, Val), ?MANAGER]).
-    %% Parameterize on manager
+    Key = mk_key(Key0),
+    event_logger:event({put, Node, Key0, Val0, Context}),
+    Val = rpc:call(mk_node(Node), ?MANAGER, put, put_arguments(Node, Key, Context, Val0)),
+    rpc:call(mk_node(Node), riak_core_broadcast, broadcast, [broadcast_obj(Key, Val), ?MANAGER]),
+    context(Val).
 
-broadcast_next(S, Context, [Node, _Key, _Val, _Context]) ->
-  S#state{ nodes = lists:keystore(Node, #node.name, S#state.nodes,
-                                  #node{ name = Node, context = Context }) }.
+broadcast_next(S, NewContext, [Node, Key, _Val, _Context]) ->
+    #node{ context = NodeContext } = lists:keyfind(Node, #node.name, S#state.nodes),
+    NodeContext1 = lists:keystore(Key, 1, NodeContext, {Key, NewContext}),
+    S#state{ nodes = lists:keystore(Node, #node.name, S#state.nodes,
+                                    #node{ name = Node, context = NodeContext1 }) }.
 
 %% -- sleep --
 sleep_pre(S) -> S#state.nodes /= [].
@@ -316,4 +334,3 @@ get_tree(Nodes) ->
             {B, lists:map(fun node_name/1, Eager), lists:map(fun node_name/1, Lazy)}
           end || #node{name = B} <- Nodes ]}
     || #node{name = A} <- Nodes ].
-
