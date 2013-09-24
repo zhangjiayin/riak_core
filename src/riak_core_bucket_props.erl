@@ -29,7 +29,11 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--spec merge([{atom(), any()}], [{atom(), any()}]) -> [{atom(), any()}].
+-spec merge([{atom(), any()}] | undefined, [{atom(), any()}] | undefined) -> [{atom(), any()}].
+merge(undefined, Other) ->
+    Other;
+merge(Overriding, undefined) ->
+    Overriding;
 merge(Overriding, Other) ->
     lists:ukeymerge(1, lists:ukeysort(1, Overriding),
                     lists:ukeysort(1, Other)).
@@ -229,4 +233,3 @@ simple_resolve_test() ->
     ?assertEqual(lists:ukeysort(1, Expected), lists:ukeysort(1, resolve(Props1, Props2))).
 
 -endif.
-

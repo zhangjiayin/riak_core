@@ -32,7 +32,11 @@
          plan/0,
          commit/0,
          clear/0,
-         ring_changed/2]).
+         ring_changed/2,
+         create_bucket_type/2,
+         update_bucket_type/2,
+         get_bucket_type/2,
+         bucket_type_iterator/0]).
 -export([reassign_indices/1]). % helpers for claim sim
 
 %% gen_server callbacks
@@ -68,6 +72,7 @@
 -define(ROUT(S,A),ok).
 %%-define(ROUT(S,A),?debugFmt(S,A)).
 %%-define(ROUT(S,A),io:format(S,A)).
+-define(BUCKET_TYPES_PREFIX, {core, bucket_types}).
 
 %%%===================================================================
 %%% API
@@ -155,6 +160,29 @@ clear() ->
 ring_changed(Node, Ring) ->
     internal_ring_changed(Node, Ring).
 
+%% @doc Creates a bucket type. This ensures all bucket types
+%% {@see riak_core_bucket_type:create/2}
+create_bucket_type(BucketType, Props) ->
+    gen_server:call(claimant(), {create_bucket_type, BucketType, Props}).
+
+%% @doc Update an existing bucket type. {@see riak_core_bucket_type:update/2}
+update_bucket_type(BucketType, Props) ->
+    gen_server:call(claimant(), {update_bucket_type, BucketType, Props}).
+
+%% @doc Return the properties associated with the given bucket type.
+%% {@see riak_core_bucket_type:get/2}
+get_bucket_type(BucketType, Default) ->
+    riak_core_metadata:get(?BUCKET_TYPES_PREFIX,
+                           BucketType,
+                           [{default, Default}, {resolver, fun riak_core_bucket_props:resolve/2}]).
+
+%% @doc Create a bucket type iterator. {@see riak_core_bucket_type:iterator/0}
+bucket_type_iterator() ->
+    %% we don't allow deletion (yet) so we should never need the default but we provide one anyway
+    riak_core_metadata:iterator(?BUCKET_TYPES_PREFIX, [{default, undefined},
+                                                       {resolver, fun riak_core_bucket_props:resolve/2}]).
+
+
 %%%===================================================================
 %%% Claim sim helpers until refactor
 %%%===================================================================
@@ -204,6 +232,20 @@ handle_call(plan, _From, State) ->
 handle_call(commit, _From, State) ->
     {Reply, State2} = commit_staged(State),
     {reply, Reply, State2};
+
+handle_call({create_bucket_type, BucketType, Props}, _From, State) ->
+    Reply = case get_bucket_type(BucketType, undefined) of
+                undefined -> update_bucket_type(BucketType, undefined, Props);
+                _ -> {error, already_exists}
+            end,
+    {reply, Reply, State};
+
+handle_call({update_bucket_type, BucketType, Props}, _From, State) ->
+    Reply = case get_bucket_type(BucketType, undefined) of
+                undefined -> {error, no_type};
+                OldProps -> update_bucket_type(BucketType, OldProps, Props)
+            end,
+    {reply, Reply, State};
 
 handle_call(_Request, _From, State) ->
     Reply = ok,
@@ -556,6 +598,15 @@ maybe_force_ring_update(Ring) ->
             ok
     end.
 
+update_bucket_type(BucketType, OldProps, NewProps) ->
+    case riak_core_bucket_props:validate(NewProps) of
+        {ok, ValidatedProps} ->
+            MergedProps = riak_core_bucket_props:merge(ValidatedProps, OldProps),
+            riak_core_metadata:put(?BUCKET_TYPES_PREFIX, BucketType, MergedProps);
+        {error, Details} ->
+            lager:error("Bucket Type properties validation failed ~p~n", [Details]),
+            {error, Details}
+    end.
 %% =========================================================================
 %% Claimant rebalance/reassign logic
 %% =========================================================================
