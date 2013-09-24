@@ -7,6 +7,8 @@
   {modules, [
             table,
              app_helper,
+             app_env_cache,
+             app_env_cache_server,
              bloom,
              chash,
              chashbin,

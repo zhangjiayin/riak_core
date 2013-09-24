@@ -27,6 +27,9 @@
          get_env/3,
          get_prop_or_env/3,
          get_prop_or_env/4,
+         set_env/3,
+         set_env/2,
+         cache_env/1,
          try_envs/1,
          try_envs/2]).
 
@@ -53,11 +56,19 @@ get_env(App, Key) ->
 %% @doc The official way to get a value from this application's env.
 %%      Will return Default if that key is unset.
 get_env(App, Key, Default) ->
-    case application:get_env(App, Key) of
-	{ok, Value} ->
-            Value;
+    case app_env_cache:get_env(App, Key) of
+        {ok, Value} ->
+            lager:info("app_helper Got ~p/~p = ~p from cache", [App, Key, Value]),
+            Value; 
         _ ->
-            Default
+            case application:get_env(App, Key) of
+                {ok, Value} ->
+                    lager:info("app_helper Got ~p/~p = ~p from env",
+                              [App, Key, Value]),
+                    Value;
+                _ ->
+                    Default
+            end
     end.
 
 %% @doc Retrieve value for Key from Properties if it exists, otherwise
@@ -76,6 +87,15 @@ get_prop_or_env(Key, Properties, App, Default) ->
         Value ->
             Value
     end.
+
+set_env(App, Key, Val) ->
+    app_env_cache_server:set_env(App, Key, Val).
+
+set_env(App, KeyVals) ->
+    app_env_cache_server:set_env(App, KeyVals).
+
+cache_env(App) ->
+    set_env(App, get_env(App)).
 
 %% @doc Like `get_env' but try multiple `{App, Key}' combos before
 %%      returning `{default, Default}'.  The return value is `{App,
