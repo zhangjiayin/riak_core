@@ -747,7 +747,7 @@ update_resource_info(Resource, Fun, Default, State=#state{table_id=TableId}) ->
     Key = {info, Resource},
     NewInfo = case ets:lookup(TableId, Key) of
                   [] -> Default;
-                  [{_Key,Info}] ->
+                  [{_Key,Info} | _Rest] ->
                       %% delete existing since we are using a bag, we don't
                       %% want multiple per info values resource key.
                       ets:delete(TableId, Key),
@@ -761,10 +761,7 @@ resource_info(Resource, #state{table_id=TableId}) ->
     Key = {info,Resource},
     case ets:lookup(TableId, Key) of
         [] -> throw({unregistered, Resource});
-        [{_Key,Info}] -> Info;
-        [First | _Rest] ->
-            lager:error("Unexpected multiple instances of key ~p in table", [{info, Resource}]),
-            First %% try to keep going
+        [{_Key,Info} | _Rest] -> Info
     end.
 
 %% @doc Throws unregistered for unknown Resource
@@ -937,7 +934,7 @@ blocked_queue(Resource, #state{table_id=TableId}) ->
     Key = {blocked, Resource},
     case ets:lookup(TableId, Key) of
         [] -> queue:new();
-        [{Key,Queue}] -> Queue
+        [{Key,Queue} | _Rest] -> Queue
     end.
 
 %% @private
