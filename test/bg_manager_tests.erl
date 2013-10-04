@@ -37,6 +37,12 @@ bg_mgr_test_() ->
                           ?assertEqual([], Hist)
                   end},
 
+                { "no locks given",
+                  fun() ->
+                          Given = ?BG_MGR:locks_held(),
+                          ?assertEqual([], Given)
+                  end},
+
                 { "verify registered tokens",
                   fun() ->
                           Tokens = registered_token_names(),
@@ -60,7 +66,14 @@ bg_mgr_test_() ->
                           ?BG_MGR:disable(),
                           ?assertEqual(max_concurrency, ?BG_MGR:get_lock(a)),
                           ?BG_MGR:enable(),
-                          ?assertEqual(ok, ?BG_MGR:get_lock(a))
+                          ?assertEqual(ok, ?BG_MGR:get_lock(a)),
+                          ?assertEqual(ok, ?BG_MGR:get_lock(a, self()))
+                  end},
+
+                { "locks_held multiple times for same resource ",
+                  fun() ->
+                          %% lock a has been given twice now
+                          ?assertEqual(2, length(?BG_MGR:locks_held(a)))
                   end},
 
                 { "lock set/get concurrency",
@@ -92,7 +105,7 @@ bg_mgr_test_() ->
                           ?assertEqual(ok, ?BG_MGR:get_lock(a, self(), [meta_a]))
                   end},
 
-                { "locks",
+                { "locks held",
                   fun() ->
                           Held = ?BG_MGR:locks_held(a),
                           ?assertEqual(length(Held), ?BG_MGR:lock_count(a))

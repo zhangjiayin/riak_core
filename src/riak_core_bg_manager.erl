@@ -860,6 +860,10 @@ resources_given(Resource, #state{table_id=TableId}) ->
     Key = {given, Resource},
     [Given || {_K,Given} <- ets:lookup(TableId, Key)].
 
+%% @private
+%% @doc Add a Resource Entry to the "given" table. Here, we really do want
+%% to allow multiple entries because each Resource "name" can be given multiple
+%% times.
 add_given_entry(Resource, Entry, TableId) ->
     Key = {given, Resource},
     ets:insert(TableId, {Key, Entry}).
