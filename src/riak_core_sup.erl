@@ -25,7 +25,6 @@
 -behaviour(supervisor).
 
 -include("riak_core_bg_manager.hrl").
--include("riak_core_token_manager.hrl").
 
 %% API
 -export([start_link/0]).
@@ -41,9 +40,7 @@
 %% ETS tables to be created and maintained by riak_core_table_manager, which is not linked
 %% to any processes except this supervisor. Please keep it that way so tables don't get lost
 %% when their user processes crash. Implement ETS-TRANSFER handler for user processes.
--define(TBL_MGR_ARGS, [{?TM_ETS_TABLE, ?TM_ETS_OPTS},
-                       {?LM_ETS_TABLE, ?LM_ETS_OPTS}
-                      ]).
+-define(TBL_MGR_ARGS, [{?BG_ETS_TABLE, ?BG_ETS_OPTS}]).
 
 %% ===================================================================
 %% API functions

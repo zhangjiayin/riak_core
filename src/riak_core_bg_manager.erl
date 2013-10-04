@@ -16,77 +16,102 @@
 %% specific language governing permissions and limitations
 %% under the License.
 %%
+%% @doc
+%% We use an ETS table to store critical data. In the event this process crashes,
+%% the table will be given back to the table manager and we can reclaim it when
+%% we restart. Thus, token rates and states are maintained across restarts of the
+%% module, but not of the application. Since we are supervised by riak_core_sup,
+%% that's fine.
+%%
+%% The table must be a bag and is best if private. See ?BG_ETS_OPTS in MODULE.hrl.
+%% Table Schema...
+%% KEY                     Data                      Notes
+%% ---                     ----                      -----
+%% {info, Resource}        #resource_info            One token object per key.
+%% {given, Resource}       #resource_entry           Multiple objects per key.
+%% {blocked, Resource}  queue of #resource_entry(s)  One queue object per key.
+%%
 %% -------------------------------------------------------------------
 -module(riak_core_bg_manager).
 
 -behaviour(gen_server).
+
+-include("riak_core_bg_manager.hrl").
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
 
 %% API
 -export([
          %% Universal
          start_link/0,
          enable/0,
+         enable/1,
          disable/0,
+         disable/1,
+         query_resource/3,
+         all_resources/0,
+         all_given/0,
+         all_blocked/0,
          %% Locks
-         %% TODO: refactor the lock implementation to another module ala tokens
-         get_lock/1,
-         get_lock/2,
-         get_lock/3,
-         lock_count/0,
-         lock_count/1,
-         lock_types/0,
-         all_locks/0,
-         query_locks/1,
-         enable_locks/0,
-         enable_locks/1,
-         disable_locks/0,
-         disable_locks/1,
-         disable_locks/2,
          concurrency_limit/1,
          set_concurrency_limit/2,
          set_concurrency_limit/3,
          concurrency_limit_reached/1,
-         %% Tokens, all proxied to riak_core_token_manager
+         get_lock/1,
+         get_lock/2,
+         get_lock/3,
+         get_lock_blocking/2,
+         get_lock_blocking/3,
+         get_lock_blocking/4,
+         lock_info/0,
+         lock_info/1,
+         lock_count/1,
+         all_locks/0,
+         locks_held/0,
+         locks_held/1, 
+         locks_blocked/0,
+         locks_blocked/1,
+         %% Tokens
          set_token_rate/2,
          token_rate/1,
-         enable_tokens/0,
-         enable_tokens/1,
-         disable_tokens/0,
-         disable_tokens/1,
          get_token/1,
          get_token/2,
          get_token/3,
-         get_token_sync/1,
-         get_token_sync/2,
-         get_token_sync/3,
-         token_types/0,
+         get_token_blocking/2,
+         get_token_blocking/3,
+         get_token_blocking/4,
+         token_info/0,
+         token_info/1,
+         all_tokens/0,
          tokens_given/0,
          tokens_given/1,
-         tokens_waiting/0,
-         tokens_waiting/1
+         tokens_blocked/0,
+         tokens_blocked/1,
+         %% Testing
+         start/1
         ]).
 
--include("riak_core_token_manager.hrl").
+%% reporting
+-export([clear_history/0,
+         head/0,
+         head/1,
+         head/2,
+         head/3,
+         tail/0,
+         tail/1,
+         tail/2,
+         tail/3,
+         ps/0,
+         ps/1
+        ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {table_id:: ets:tid(),            %% TableID of ?LM_ETS_TABLE
-                enabled :: boolean()}).
-
--record(lock_info, {concurrency_limit :: non_neg_integer(),
-                    enabled           :: boolean()}).
-
 -define(SERVER, ?MODULE).
--define(DEFAULT_CONCURRENCY, 0). %% DO NOT CHANGE. DEFAULT SET TO 0 TO ENFORCE "REGISTRATION"
--define(limit(X), (X)#lock_info.concurrency_limit).
--define(enabled(X), (X)#lock_info.enabled).
--define(DEFAULT_LOCK_INFO, #lock_info{enabled=true, concurrency_limit=?DEFAULT_CONCURRENCY}).
--define(LM_ETS_TABLE, lock_mgr_table).   %% name of private lock manager ETS table
--define(LM_ETS_OPTS, [private, bag]).    %% creation time properties of lock manager ETS table
-
--type concurrency_limit() :: non_neg_integer() | infinity.
 
 %%%===================================================================
 %%% API
@@ -97,194 +122,66 @@
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
-%% @doc Enable handing out of all background locks and tokens
+%% Test entry point to start stand-alone server
+start(Interval) ->
+    gen_server:start({local, ?SERVER}, ?MODULE, [Interval], []).
+
+%% @doc Enable handing out of all locks and tokens
 -spec enable() -> ok.
 enable() ->
-    enable_tokens(),
-    enable_locks().
+    gen_server:cast(?SERVER, enable).
 
-%% @doc Disable handing out of all background locks and tokens
+%% @doc Disable handing out of all locks and tokens
 -spec disable() -> ok.
 disable() ->
-    disable_tokens(),
-    disable_locks().
+    gen_server:cast(?SERVER, disable).
 
-%%% Token API proxies to the token manager
+%% @doc Enable handing out resources of the kind specified. If the resource
+%%      has not already been registered, this will have no effect.
+-spec enable(bg_resource()) -> ok | unregistered.
+enable(Resource) ->
+    gen_server:cast(?SERVER, {enable, Resource}).
 
-%% @doc Set the refill rate of tokens.
--spec set_token_rate(any(), riak_core_token_manager:tm_rate()) -> riak_core_token_manager:tm_rate().
-set_token_rate(Type, {Period, Count}) ->
-    riak_core_token_manager:set_token_rate(Type, {Period, Count}).
+%% @doc Disble handing out resource of the given kind.
+-spec disable(bg_resource()) -> ok | unregistered.
+disable(Resource) ->
+    gen_server:cast(?SERVER, {disable, Resource}).
 
--spec token_rate(any()) -> riak_core_token_manager:tm_rate().
-token_rate(Type) ->
-    riak_core_token_manager:token_rate(Type).
+%% @doc Query the current set of registered resources by name, states, and types.
+%%      The special atom 'all' querys all resources. A list of states and a list
+%%      of types allows selective query.
+-spec query_resource(bg_resource() | all, [bg_state()], [bg_resource_type()]) -> [bg_stat_live()].
+query_resource(Resource, States, Types) ->
+    gen_server:call(?SERVER, {query_resource, Resource, States, Types}, infinity).
 
-%% @doc Asynchronously get a token of kind Type. returns "max_tokens" if empty
--spec get_token(any()) -> ok | max_tokens.
-get_token(Type) ->
-    get_token(Type, self()).
+%% @doc Get a list of all resources of all types in all states
+-spec all_resources() -> [bg_stat_live()].
+all_resources() ->
+    query_resource(all, [given, blocked], [token, lock]).
 
-%% @doc Asynchronously get a token of kind Type.
-%%      Associate token with provided pid or metadata. If metadata
-%%      is provided the lock is associated with the calling process.
-%%      Returns "max_tokens" if empty.
--spec get_token(any(), pid() | [{atom(), any()}]) -> ok | max_tokens.
-get_token(Type, Pid) when is_pid(Pid) ->
-    get_token(Type, Pid, []);
-get_token(Type, Meta) ->
-    get_token(Type, self(), Meta).
+%% @doc Get a list of all resources of all kinds in the given state
+-spec all_given() -> [bg_stat_live()].
+all_given() ->
+    query_resource(all, [given], [token, lock]).
 
--spec get_token(any(), pid(), [{atom(), any()}]) -> ok | max_concurrency.
-get_token(Type, Pid, Meta) ->
-    riak_core_token_manager:get_token_async(Type, Pid, Meta).
+%% @doc Get a list of all resources of all kinds in the blocked state
+-spec all_blocked() -> [bg_stat_live()].
+all_blocked() ->
+    query_resource(all, [blocked], [token, lock]).
 
-%% @doc Synchronously get a token of type Type. returns "max_tokens" if empty
--spec get_token_sync(any()) -> ok | max_tokens.
-get_token_sync(Type) ->
-    get_token_sync(Type, self()).
-
-%% @doc Synchronously get a token of kind Type.
-%%      Associate token with provided pid or metadata. If metadata
-%%      is provided the lock is associated with the calling process.
-%%      Returns "max_tokens" if empty.
--spec get_token_sync(any(), pid() | [{atom(), any()}]) -> ok | max_tokens.
-get_token_sync(Type, Pid) when is_pid(Pid) ->
-    get_token_sync(Type, Pid, []);
-get_token_sync(Type, Meta) ->
-    get_token(Type, self(), Meta).
-
--spec get_token_sync(any(), pid(), [{atom(), any()}]) -> ok | max_concurrency.
-get_token_sync(Type, Pid, Meta) ->
-    riak_core_token_manager:get_token_sync(Type, Pid, Meta).
-
-token_types() ->
-    riak_core_token_manager:token_types().
-
-tokens_given() ->
-    riak_core_token_manager:tokens_given().
-
-tokens_given(Type) ->
-    riak_core_token_manager:tokens_given(Type).
-
-tokens_waiting() ->
-    riak_core_token_manager:tokens_waiting().
-
-tokens_waiting(Type) ->
-    riak_core_token_manager:tokens_waiting(Type).
-
-%% @doc Enable handing out of any tokens
--spec enable_tokens() -> ok.
-enable_tokens() ->
-    riak_core_token_manager:enable().
-
-%% @doc Disable handing out of any tokens
--spec disable_tokens() -> ok.
-disable_tokens() ->
-    riak_core_token_manager:disable().
-
-%% @doc Enable handing out of tokens of the given type.
--spec enable_tokens(any()) -> ok.
-enable_tokens(Type) ->
-    riak_core_token_manager:enable(Type).
-
-
-%% @doc same as `disable(Type, false)'
--spec disable_tokens(any()) -> ok.
-disable_tokens(Type) ->
-    riak_core_token_manager:enable(Type).
-
-%%% Locks
-
-%% @doc Acquire a concurrency lock of the given type, if available,
-%%      and associate the lock with the calling process.
--spec get_lock(any()) -> ok | max_concurrency.
-get_lock(Type) ->
-    get_lock(Type, self()).
-
-%% @doc Acquire a concurrency lock of the given type, if available,
-%%      and associate the lock with the provided pid or metadata. If metadata
-%%      is provided the lock is associated with the calling process
--spec get_lock(any(), pid() | [{atom(), any()}]) -> ok | max_concurrency.
-get_lock(Type, Pid) when is_pid(Pid) ->
-    get_lock(Type, Pid, []);
-get_lock(Type, Opts) when is_list(Opts)->
-    get_lock(Type, self(), Opts).
-
-%% @doc Acquire a concurrency lock of the given type, if available,
-%%      and associate the lock with the provided pid and metadata.
--spec get_lock(any(), pid(), [{atom(), any()}]) -> ok | max_concurrency.
-get_lock(Type, Pid, Info) ->
-    gen_server:call(?MODULE, {get_lock, Type, Pid, Info}, infinity).
-
-%% @doc Return the current concurrency count for all lock types
--spec lock_count() -> integer().
-lock_count() ->
-    gen_server:call(?MODULE, lock_count, infinity).
-
-%% @doc Return the current concurrency count of the given lock type.
--spec lock_count(any()) -> integer().
-lock_count(Type) ->
-    gen_server:call(?MODULE, {lock_count, Type}, infinity).
-
-%% @doc Return list of lock types and associated info. To be returned in this list
-%%      a lock type must have had its concurrency set or have been enabled/disabled.
--spec lock_types() -> [{any(), boolean(), concurrency_limit()}].
-lock_types() ->
-    gen_server:call(?MODULE, lock_types, infinity).
-
-%% @doc Returns all currently held locks
--spec all_locks() -> [{any(), pid(), reference(), [{atom(), any()}]}].
-all_locks() ->
-    query_locks([]).
-
-%% @doc Queries the currently held locks returning any locks that match the given criteria.
-%%      If no criteria is present then all held locks are returned. The query is a proplist of
-%%      2-tuples. The keys 'pid' and 'type', have special meaning. If they are keys in the
-%%      query proplists, only locks matching the corresponding pid or lock type are
-%%      returned. All other pairs are compared for equality against the proplist passed as the third
-%%      argument to get_lock/3. The returned value is a list of 4-tuples. The first element
-%%      is the lock type; the second, the pid holding the lock; the third, the lock refernce,
-%%      and the fourth is the metadata passed to get_lock/3.
--spec query_locks([{atom(), any()}]) -> [{any(), pid(), reference(), [{atom(), any()}]}].
-query_locks(Query) ->
-    gen_server:call(?MODULE, {query_locks, Query}, infinity).
-
-%% @doc Enable handing out of any locks
--spec enable_locks() -> ok.
-enable_locks() ->
-    gen_server:cast(?MODULE, enable).
-
-%% @doc Disable handing out of any locks
--spec disable_locks() -> ok.
-disable_locks() ->
-    gen_server:cast(?MODULE, disable).
-
-%% @doc Enable handing out of locks of the given type.
--spec enable_locks(any()) -> ok.
-enable_locks(Type) ->
-    gen_server:cast(?MODULE, {enable, Type}).
-
-%% @doc same as `disable_locks(Type, false)'
--spec disable_locks(any()) -> ok.
-disable_locks(Type) ->
-    disable_locks(Type, false).
-
-%% @doc Disable handing out of locks of the given type. If `Kill' is `true' any processes
-%%      holding locks for the given type will be killed with reaseon `max_concurrency'
--spec disable_locks(any(), boolean()) -> ok.
-disable_locks(Type, Kill) ->
-    gen_server:cast(?MODULE, {disable, Type, Kill}).
+%%%%%%%%%%%
+%% Lock API
+%%%%%%%%%%%
 
 %% @doc Get the current maximum concurrency for the given lock type.
--spec concurrency_limit(any()) -> concurrency_limit().
-concurrency_limit(Type) ->
-    gen_server:call(?MODULE, {concurrency_limit, Type}, infinity).
+-spec concurrency_limit(bg_lock()) -> bg_concurrency_limit().
+concurrency_limit(Lock) ->
+    gen_server:call(?MODULE, {concurrency_limit, Lock}, infinity).
 
 %% @doc same as `set_concurrency_limit(Type, Limit, false)'
--spec set_concurrency_limit(any(), concurrency_limit()) -> concurrency_limit().
-set_concurrency_limit(Type, Limit) ->
-    set_concurrency_limit(Type, Limit, false).
+-spec set_concurrency_limit(bg_lock(), bg_concurrency_limit()) -> bg_concurrency_limit().
+set_concurrency_limit(Lock, Limit) ->
+    set_concurrency_limit(Lock, Limit, false).
 
 %% @doc Set a new maximum concurrency for the given lock type and return
 %%      the previous maximum or default. If more locks are held than the new
@@ -292,14 +189,275 @@ set_concurrency_limit(Type, Limit) ->
 %%      then the extra locks are released by killing processes with reason `max_concurrency'.
 %%      If `false', then the processes holding the extra locks are aloud to do so until they
 %%      are released.
--spec set_concurrency_limit(any(), concurrency_limit(), boolean()) -> concurrency_limit().
-set_concurrency_limit(Type, Limit, Kill) ->
-    gen_server:call(?MODULE, {set_concurrency_limit, Type, Limit, Kill}, infinity).
+-spec set_concurrency_limit(bg_lock(), bg_concurrency_limit(), boolean()) -> bg_concurrency_limit().
+set_concurrency_limit(Lock, Limit, Kill) ->
+    gen_server:call(?MODULE, {set_concurrency_limit, Lock, Limit, Kill}, infinity).
 
 %% @doc Returns true if the number of held locks is at the limit for the given lock type
--spec concurrency_limit_reached(any()) -> boolean().
-concurrency_limit_reached(Type) ->
-    gen_server:call(?MODULE, {lock_limit_reached, Type}, infinity).
+-spec concurrency_limit_reached(bg_lock()) -> boolean().
+concurrency_limit_reached(Lock) ->
+    gen_server:call(?MODULE, {lock_limit_reached, Lock}, infinity).
+
+%% @doc Acquire a concurrency lock of the given name, if available,
+%%      and associate the lock with the calling process.
+-spec get_lock(bg_lock()) -> ok | max_concurrency.
+get_lock(Lock) ->
+    get_lock(Lock, self()).
+
+%% @doc Acquire a concurrency lock, if available, and associate the
+%%      lock with the provided pid or metadata. If metadata
+%%      is provided the lock is associated with the calling process
+%%      If no locks are available, max_concurrency is returned.
+-spec get_lock(bg_lock(), pid() | [{atom(), any()}]) -> ok | max_concurrency.
+get_lock(Lock, Pid) when is_pid(Pid) ->
+    get_lock(Lock, Pid, []);
+get_lock(Lock, Opts) when is_list(Opts)->
+    get_lock(Lock, self(), Opts).
+
+%% @doc Acquire a concurrency lock, if available,  and associate
+%%      the lock with the provided pid and metadata.
+-spec get_lock(bg_lock(), pid(), [{atom(), any()}]) -> ok | max_concurrency.
+get_lock(Lock, Pid, Meta) ->
+    gen_server:call(?MODULE, {get_lock, Lock, Pid, Meta}, infinity).
+
+%% @doc Get a lock and block if those locks are currently at max_concurrency, until
+%%      a lock is released. Associate lock with provided pid or metadata.
+%%      If metadata is provided, the lock is associated with the calling process.
+%%      If the lock is not given before Timeout milliseconds, the call will
+%%      return with 'timeout'.
+-spec get_lock_blocking(bg_lock(), pid() | [{atom(), any()}], timeout()) -> ok | timeout | unregistered.
+get_lock_blocking(Lock, Pid, Timeout) when is_pid(Pid) ->
+    get_lock_blocking(Lock, Pid, [], Timeout);
+get_lock_blocking(Lock, Meta, Timeout) ->
+    get_lock_blocking(Lock, self(), Meta, Timeout).
+
+-spec get_lock_blocking(bg_lock(), timeout()) -> ok | unregistered.
+get_lock_blocking(Lock, Timeout) ->
+    get_lock_blocking(Lock, self(), Timeout).
+
+-spec get_lock_blocking(bg_lock(), pid(), [{atom(), any()}], timeout()) -> ok | timeout.
+get_lock_blocking(Lock, Pid, Meta, Timeout) ->
+    gen_server:call(?SERVER, {get_lock_blocking, Lock, Pid, Meta, Timeout}, infinity).
+
+%% @doc Return the current concurrency count of the given lock type.
+-spec lock_count(bg_lock()) -> integer() | unregistered.
+lock_count(Lock) ->
+    gen_server:call(?MODULE, {lock_count, Lock}, infinity).
+
+%% @doc Return list of lock types and associated info. To be returned in this list
+%%      a lock type must have had its concurrency set or have been enabled/disabled.
+-spec lock_info() -> [{bg_lock(), boolean(), bg_concurrency_limit()}].
+lock_info() ->
+    gen_server:call(?MODULE, lock_info, infinity).
+
+%% @doc Return the registration info for the named Lock
+-spec lock_info(bg_lock()) -> {boolean(), bg_concurrency_limit()} | unregistered.
+lock_info(Lock) ->
+    gen_server:call(?MODULE, {lock_info, Lock}, infinity).
+
+%% @doc Returns all locks, held or blocked.
+-spec all_locks() -> [bg_stat_live()].
+all_locks() ->
+    query_resource(all, [given, blocked], [lock]).
+
+
+%% @doc Returns all currently held locks or those that match Lock
+-spec locks_held() -> [bg_stat_live()].
+locks_held() ->
+    locks_held(all).
+
+-spec locks_held(bg_lock() | all) -> [bg_stat_live()].
+locks_held(Lock) ->
+    query_resource(Lock, [given], [lock]).
+
+%% @doc Returns all currently blocked locks.
+locks_blocked() ->
+    locks_blocked(all).
+
+-spec locks_blocked(bg_lock() | all) -> [bg_stat_live()].
+locks_blocked(Lock) ->
+    query_resource(Lock, [blocked], [token]).
+
+%%%%%%%%%%%%
+%% Token API
+%%%%%%%%%%%%
+
+%% @doc Set the refill rate of tokens. Return previous value.
+-spec set_token_rate(bg_token(), bg_rate()) -> bg_rate().
+set_token_rate(Token, Rate={_Period, _Count}) ->
+    gen_server:call(?SERVER, {set_token_rate, Token, Rate}, infinity).
+
+%% @doc Get the current refill rate of named token.
+-spec token_rate(bg_token()) -> bg_rate().
+token_rate(Token) ->
+    gen_server:call(?SERVER, {token_rate, Token}, infinity).
+
+%% @doc Get a token without blocking.
+%%      Associate token with provided pid or metadata. If metadata
+%%      is provided the lock is associated with the calling process.
+%%      Returns "max_tokens" if empty.
+-spec get_token(bg_token(), pid() | [{atom(), any()}]) -> ok | max_tokens.
+get_token(Token, Pid) when is_pid(Pid) ->
+    get_token(Token, Pid, []);
+get_token(Token, Meta) ->
+    get_token(Token, self(), Meta).
+
+-spec get_token(bg_token()) -> ok | max_tokens.
+get_token(Token) ->
+    get_token(Token, self()).
+
+-spec get_token(bg_token(), pid(), [{atom(), any()}]) -> ok | max_tokens.
+get_token(Token, Pid, Meta) ->
+    gen_server:call(?SERVER, {get_token, Token, Pid, Meta}, infinity).
+
+%% @doc Get a token and block if those tokens are currently empty, until the
+%%      tokens are refilled. Associate token with provided pid or metadata.
+%%      If metadata is provided, the token is associated with the calling process.
+-spec get_token_blocking(bg_token(), pid() | [{atom(), any()}], timeout()) -> ok | timeout.
+get_token_blocking(Token, Pid, Timeout) when is_pid(Pid) ->
+    get_token_blocking(Token, Pid, [], Timeout);
+get_token_blocking(Token, Meta, Timeout) ->
+    get_token_blocking(Token, self(), Meta, Timeout).
+
+-spec get_token_blocking(bg_token(), timeout()) -> ok.
+get_token_blocking(Token, Timeout) ->
+    get_token_blocking(Token, self(), Timeout).
+
+-spec get_token_blocking(bg_token(), pid(), [{atom(), any()}], timeout()) -> ok | timeout.
+get_token_blocking(Token, Pid, Meta, Timeout) ->
+    gen_server:call(?SERVER, {get_token_blocking, Token, Pid, Meta, Timeout}, infinity).
+
+%% @doc Return list of token kinds and associated info. To be returned in this list
+%%      a token must have had its rate set.
+-spec token_info() -> [{bg_token(), boolean(), bg_rate()}].
+token_info() ->
+    gen_server:call(?MODULE, token_info, infinity).
+
+%% @doc Return the registration info for the named Token
+-spec token_info(bg_token()) -> {boolean(), bg_rate()}.
+token_info(Token) ->
+    gen_server:call(?MODULE, {token_info, Token}, infinity).
+
+-spec all_tokens() -> [bg_stat_live()].
+all_tokens() ->
+    query_resource(all, [given, blocked], [token]).
+
+%% @doc Get a list of token resources in the given state.
+tokens_given() ->
+    tokens_given(all).
+-spec tokens_given(bg_token() | all) -> [bg_stat_live()].
+tokens_given(Token) ->
+    query_resource(Token, [given], [token]).
+
+%% @doc Get a list of token resources in the blocked state.
+tokens_blocked() ->
+    tokens_blocked(all).
+tokens_blocked(Token) ->
+    query_resource(Token, [blocked], [token]).
+
+%% Stats/Reporting
+
+clear_history() ->
+    gen_server:cast(?SERVER, clear_history).
+
+%% List history of token manager
+%% @doc show history of token request/grants over default and custom intervals.
+%%      offset is forwards-relative to the oldest sample interval
+-spec head() -> [[bg_stat_hist()]].
+head() ->
+        head(all).
+-spec head(bg_token()) -> [[bg_stat_hist()]].
+head(Token) ->
+        head(Token, ?BG_DEFAULT_OUTPUT_SAMPLES).
+-spec head(bg_token(), bg_count()) -> [[bg_stat_hist()]].
+head(Token, NumSamples) ->
+    head(Token, 0, NumSamples).
+-spec head(bg_token(), bg_count(), bg_count()) -> [[bg_stat_hist()]].
+head(Token, Offset, NumSamples) ->
+    gen_server:call(?SERVER, {head, Token, Offset, NumSamples}, infinity).
+
+%% @doc return history of token request/grants over default and custom intervals.
+%%      offset is backwards-relative to the newest sample interval
+-spec tail() -> [[bg_stat_hist()]].
+tail() ->
+    tail(all).
+-spec tail(bg_token()) -> [[bg_stat_hist()]].
+tail(Token) ->
+    tail(Token, ?BG_DEFAULT_OUTPUT_SAMPLES).
+-spec tail(bg_token(), bg_count()) -> [[bg_stat_hist()]].
+tail(Token, NumSamples) ->
+    tail(Token, NumSamples, NumSamples).
+-spec tail(bg_token(), bg_count(), bg_count()) -> [[bg_stat_hist()]].
+tail(Token, Offset, NumSamples) ->
+    gen_server:call(?SERVER, {tail, Token, Offset, NumSamples}, infinity).
+
+%% @doc List most recent requests/grants for all tokens and locks
+-spec ps() -> [bg_stat_live()].
+ps() ->
+    ps(all).
+%% @doc List most recent requests/grants for named resource or one of
+%%      either 'token' or 'lock'. The later two options will list all
+%%      resources of that type in the given/locked or blocked state.
+-spec ps(bg_resource() | token | lock) -> [bg_stat_live()].
+ps(Arg) ->
+    gen_server:call(?SERVER, {ps, Arg}, infinity).
+
+%%%===================================================================
+%%% Data Structures
+%%%===================================================================
+
+-type bg_limit() :: bg_concurrency_limit() | bg_rate().
+
+%% General settings of a lock type.
+-record(resource_info,
+        {type      :: bg_resource_type(),
+         limit     :: bg_limit(),
+         enabled   :: boolean()}).
+
+-define(resource_type(X), (X)#resource_info.type).
+-define(resource_limit(X), (X)#resource_info.limit).
+-define(resource_enabled(X), (X)#resource_info.enabled).
+
+-define(DEFAULT_CONCURRENCY, 0). %% DO NOT CHANGE. DEFAULT SET TO 0 TO ENFORCE "REGISTRATION"
+-define(DEFAULT_RATE, {0,0}).
+-define(DEFAULT_LOCK_INFO, #resource_info{type=lock, enabled=true, limit=?DEFAULT_CONCURRENCY}).
+-define(DEFAULT_TOKEN_INFO, #resource_info{type= token, enabled=true, limit=?DEFAULT_RATE}).
+
+%% An instance of a resource entry in "given" or "blocked"
+-record(resource_entry,
+        {resource  :: bg_resource(),
+         type      :: bg_resource_type(),
+         pid       :: pid(),           %% owning process
+         meta      :: bg_meta(),       %% associated metadata
+         from      :: {pid(), term()}, %% optional reply-to for blocked resources
+         ref       :: reference(),     %% optional monitor reference to owning process
+         state     :: bg_state()        %% state of item on given or blocked queue
+        }).
+
+-define(RESOURCE_ENTRY(Resource, Type, Pid, Meta, From, Ref, State),
+        #resource_entry{resource=Resource, type=Type, pid=Pid, meta=Meta, from=From, ref=Ref, state=State}).
+-define(e_resource(X), (X)#resource_entry.resource).
+-define(e_type(X), (X)#resource_entry.type).
+-define(e_pid(X), (X)#resource_entry.pid).
+-define(e_meta(X), (X)#resource_entry.meta).
+-define(e_from(X), (X)#resource_entry.from).
+-define(e_ref(X), (X)#resource_entry.ref).
+-define(e_state(X), (X)#resource_entry.state).
+
+%%%
+%%% Gen Server State record
+%%%
+
+-record(state,
+        {table_id:: ets:tid(),            %% TableID of ?BG_ETS_TABLE
+         %% NOTE: None of the following data is persisted across process crashes.
+         enabled :: boolean(),            %% Global enable/disable switch, true at startup
+         %% stats
+         window  :: orddict:orddict(),    %% bg_resource() -> bg_stat_hist()
+         history :: queue(),              %% bg_resource() -> queue of bg_stat_hist()
+         window_interval :: bg_period(),  %% history window size in seconds
+         window_tref :: reference()       %% reference to history window sampler timer
+        }).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -312,11 +470,18 @@ concurrency_limit_reached(Type) ->
                   ignore |
                   {stop, term()}.
 init([]) ->
+    init([?BG_DEFAULT_WINDOW_INTERVAL]);
+init([Interval]) ->
     lager:debug("Background Manager starting up."),
     %% claiming the table will result in a handle_info('ETS-TRANSFER', ...) message.
-    ok = riak_core_table_manager:claim_table(?LM_ETS_TABLE),
-    {ok, #state{table_id=undefined,
-                enabled=true}}.
+    ok = riak_core_table_manager:claim_table(?BG_ETS_TABLE),
+    State = #state{table_id=undefined, %% resolved in the ETS-TRANSFER handler
+                   window=orddict:new(),
+                   enabled=true,
+                   window_interval=Interval,
+                   history=queue:new()},
+    State2 = schedule_sample_history(State),
+    {ok, State2}.
 
 %% @private
 %% @doc Handling call messages
@@ -327,52 +492,75 @@ init([]) ->
                          {noreply, #state{}, non_neg_integer()} |
                          {stop, term(), term(), #state{}} |
                          {stop, term(), #state{}}.
-handle_call({get_lock, LockType, Pid, Info}, _From, State) ->
-    {Reply, State2} = try_lock(LockType, Pid, Info, State),
-    {reply, Reply, State2};
-handle_call({lock_count, LockType}, _From, State) ->
-    {reply, held_count(LockType, State), State};
-handle_call(lock_count, _From, State) ->
-    Count = length(held_locks(State)),
-    {reply, Count, State};
-handle_call({lock_limit_reached, LockType}, _From, State) ->
-    HeldCount = held_count(LockType, State),
-    Limit = ?limit(lock_info(LockType, State)),
-    {reply, HeldCount >= Limit, State};
-handle_call(lock_types, _From, State=#state{table_id=TableId}) ->
-    Infos = [{Type,Info} || {{info, Type},Info} <- ets:match_object(TableId, {{info, '_'},'_'})],
-    Types = [{Type, ?enabled(LI), ?limit(LI)} || {Type, LI} <- Infos],
-    {reply, Types, State};
-handle_call({query_locks, Query}, _From, State) ->
-    Results = query_locks(Query, State),
-    {reply, Results, State};
-handle_call({concurrency_limit, LockType}, _From, State) ->
-    Limit = ?limit(lock_info(LockType, State)),
-    {reply, Limit, State};
-handle_call({set_concurrency_limit, LockType, Limit, Kill}, _From, State) ->
-    OldLimit = ?limit(lock_info(LockType, State)),
-    State2 = update_concurrency_limit(LockType, Limit, State),
-    maybe_honor_limit(Kill, LockType, Limit, State2),
-    {reply, OldLimit, State2}.
 
+handle_call({query_resource, Resource, States, Types}, _From, State) ->
+    Result = do_query(Resource, States, Types, State),
+    {reply, Result, State};
+handle_call({get_lock, Lock, Pid, Meta}, _From, State) ->
+    do_handle_call_exception(fun do_get_resource/5, [Lock, lock, Pid, Meta, State], State);
+handle_call({get_lock_blocking, Lock, Pid, Meta, Timeout}, From, State) ->
+    do_handle_call_exception(fun do_get_resource_blocking/7,
+                             [Lock, lock, Pid, Meta, From, Timeout, State], State);
+handle_call({lock_count, Lock}, _From, State) ->
+    {reply, held_count(Lock, State), State};
+handle_call({lock_limit_reached, Lock}, _From, State) ->
+    do_handle_call_exception(fun do_lock_limit_reached/2, [Lock, State], State);
+handle_call(lock_info, _From, State) ->
+    do_handle_call_exception(fun do_get_type_info/2, [lock, State], State);
+handle_call({lock_info, Lock}, _From, State) ->
+    do_handle_call_exception(fun do_resource_info/2, [Lock, State], State);
+handle_call({concurrency_limit, Lock}, _From, State) ->
+    do_handle_call_exception(fun do_resource_limit/2, [Lock, State], State);
+handle_call({set_concurrency_limit, Lock, Limit, Kill}, _From, State) ->
+    do_set_concurrency_limit(Lock, Limit, Kill, State);
+handle_call({token_rate, Token}, _From, State) ->
+    do_handle_call_exception(fun do_resource_limit/2, [Token, State], State);
+handle_call(token_info, _From, State) ->
+    do_handle_call_exception(fun do_get_type_info/2, [token, State], State);
+handle_call({token_info, Token}, _From, State) ->
+    do_handle_call_exception(fun do_resource_info/2, [Token, State], State);
+handle_call({set_token_rate, Token, Rate}, _From, State) ->
+    do_handle_call_exception(fun do_set_token_rate/3, [Token, Rate, State], State);
+handle_call({get_token, Token, Pid, Meta}, _From, State) ->
+    do_handle_call_exception(fun do_get_resource/5, [Token, token, Pid, Meta, State], State);
+handle_call({get_token_blocking, Token, Pid, Meta, Timeout}, From, State) ->
+    do_handle_call_exception(fun do_get_resource_blocking/7,
+                             [Token, token, Pid, Meta, From, Timeout, State], State);
+handle_call({head, Token, Offset, Count}, _From, State) ->
+    Result = do_hist(head, Token, Offset, Count, State),
+    {reply, Result, State};
+handle_call({tail, Token, Offset, Count}, _From, State) ->
+    Result = do_hist(tail, Token, Offset, Count, State),
+    {reply, Result, State};
+handle_call({ps, lock}, _From, State) ->
+    Result = do_query(all, [given, blocked], [lock], State),
+    {reply, Result, State};
+handle_call({ps, token}, _From, State) ->
+    Result = do_query(all, [given, blocked], [token], State),
+    {reply, Result, State};
+handle_call({ps, Resource}, _From, State) ->
+    Result = do_query(Resource, [given, blocked], [token, lock], State),
+    {reply, Result, State}.
 
 %% @private
 %% @doc Handling cast messages
 -spec handle_cast(term(), #state{}) -> {noreply, #state{}} |
                                        {noreply, #state{}, non_neg_integer()} |
                                        {stop, term(), #state{}}.
-handle_cast({enable, LockType}, State) ->
-    State2 = enable_lock(LockType, State),
-    {noreply, State2};
-handle_cast({disable, LockType, Kill}, State) ->
-    State2 = disable_lock(LockType, State),
-    maybe_honor_limit(Kill, LockType, 0, State),
-    {noreply, State2};
+handle_cast({enable, Resource}, State) ->
+    do_handle_cast_exception(fun do_enable_resource/3, [Resource, true, State], State);
+handle_cast({disable, Resource}, State) ->
+    do_handle_cast_exception(fun do_enable_resource/3, [Resource, false, State], State);
+handle_cast({disable, Lock, Kill}, State) ->
+    do_handle_cast_exception(fun do_disable_lock/3, [Lock, Kill, State], State);
 handle_cast(enable, State) ->
     State2 = State#state{enabled=true},
     {noreply, State2};
 handle_cast(disable, State) ->
     State2 = State#state{enabled=false},
+    {noreply, State2};
+handle_cast(clear_history, State) ->
+    State2 = do_clear_history(State),
     {noreply, State2}.
 
 %% @private
@@ -384,9 +572,21 @@ handle_cast(disable, State) ->
 handle_info({'ETS-TRANSFER', TableId, Pid, _Data}, State) ->
     lager:debug("table_mgr (~p) -> bg_mgr (~p) receiving ownership of TableId: ~p", [Pid, self(), TableId]),
     State2 = State#state{table_id=TableId},
+    reschedule_token_refills(State2),
     {noreply, State2};
 handle_info({'DOWN', Ref, _, _, _}, State) ->
-    State2 = release_lock(Ref, State),
+    State2 = release_resource(Ref, State),
+    {noreply, State2};
+handle_info(sample_history, State) ->
+    State2 = schedule_sample_history(State),
+    State3 = do_sample_history(State2),
+    {noreply, State3};
+handle_info({blocked_timeout, Resource, From}, State) ->
+    %% reply timeout to waiting caller and clear blocked queue.
+    {noreply, do_reply_timeout(Resource, From, State)};
+handle_info({refill_tokens, Type}, State) ->
+    State2 = do_refill_tokens(Type, State),
+    schedule_refill_tokens(Type, State2),
     {noreply, State2};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -410,71 +610,112 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-query_locks(FullQuery, State) ->
-    Locks = held_locks(State),
-    Base = case proplists:get_value(type, FullQuery) of
-               undefined -> Locks;
-               LockType -> orddict:from_list([{LockType, held_locks(LockType, State)}])
-           end,
-    Query = proplists:delete(type, FullQuery),
-    Matching = orddict:fold(fun(Type, Held, Matching) ->
-                                    [matching_locks(Type, Held, Query) | Matching]
-                            end,
-                            [], Base),
-    lists:flatten(Matching).
 
-matching_locks(Type, Held, FullQuery) ->
-    QueryPid = proplists:get_value(pid, FullQuery),
-    Query = proplists:delete(pid, FullQuery),
-    [{Type, Pid, Ref, Info} || {Pid, Ref, Info} <- Held,
-                               matches_pid(QueryPid, Pid),
-                               matches_query(Info, Query)].
+%% @private
+%% @doc Wrap a call, to a function with args, with a try/catch that handles
+%%      thrown exceptions, namely '{unregistered, Resource}' and return the
+%%      proper error response for a gen server cast.
+do_handle_cast_exception(Function, Args, State) ->
+    try apply(Function, Args)
+    catch
+        Error ->
+            lager:error("Exception: ~p in function ~p", [Error, Function]),
+            {noreply, State}
+    end.
 
-matches_pid(undefined, _) ->
-    true;
-matches_pid(QueryPid, QueryPid) ->
-    true;
-matches_pid(_, _) ->
-    false.
+%% @private
+%% @doc Wrap a call, to a function with args, with a try/catch that handles
+%%      thrown exceptions, namely '{unregistered, Resource}' and return the
+%%      failed error response for a gen server call.
+do_handle_call_exception(Function, Args, State) ->
+    try apply(Function, Args)
+    catch
+        Error ->
+            lager:error("Exception: ~p in function ~p", [Error, Function]),
+            {reply, Error, State}
+    end.
 
-matches_query(Info, Query) ->
-    SortedInfo = lists:ukeysort(1, Info),
-    SortedQuery = lists:ukeysort(1, Query),
-    (SortedQuery -- SortedInfo) =:= [].
+%% xyzzy
 
-try_lock(LockType, Pid, Info, State=#state{enabled=GlobalEnabled}) ->
-    LockInfo = lock_info(LockType, State),
-    Enabled = GlobalEnabled andalso ?enabled(LockInfo),
-    Limit = ?limit(LockInfo),
-    Held  = held_count(LockType, State),
-    try_lock(Enabled andalso not (Held >= Limit), LockType, Pid, Info, State).
+%% @doc Throws {unregistered, Resource} for unknown Lock.
+do_disable_lock(Lock, Kill, State) ->
+    maybe_honor_limit(Kill, Lock, 0, State),
+    do_enable_resource(Lock, false, State).
 
-try_lock(false, _LockType, _Pid, _Info, State) ->
-    {max_concurrency, State};
-try_lock(true, LockType, Pid, Info, State) ->
-    Ref = monitor(process, Pid),
-    State2 = add_lock(LockType, {Pid, Ref, Info}, State),
-    {ok, State2}.
+%% @doc Throws unregistered for unknown Token
+do_set_token_rate(Token, Rate, State) ->
+    try
+        Info = resource_info(Token, State),
+        OldRate = limit(Info),
+        State2 = update_limit(Token, Rate, Info, State),
+        schedule_refill_tokens(Token, State2),
+        %% maybe reschedule blocked callers
+        State3 = maybe_unblock_blocked(Token, State2),
+        {reply, OldRate, State3}
+    catch
+        {unregistered, Token} ->
+            {reply, 0, update_limit(Token, Rate, ?DEFAULT_TOKEN_INFO, State)}
+    end.
 
-add_lock(LockType, Lock, State=#state{table_id=TableId}) ->
-    Key = {held, LockType},
-    ets:insert(TableId, {Key, Lock}),
-    State.
+do_get_type_info(Type, State) ->
+    S = fun({R,_T,E,L}) -> {R,E,L} end,
+    Resources = all_registered_resources(Type, State),
+    Infos = [S(resource_info_tuple(Resource, State)) || Resource <- Resources],
+    {reply, Infos, State}.
 
-release_lock(Ref, State=#state{table_id=TableId}) ->
+do_resource_limit(Resource, State) ->
+    Info = resource_info(Resource, State),
+    Rate = ?resource_limit(Info),
+    {reply, Rate, State}.
+
+do_set_concurrency_limit(Lock, Limit, Kill, State) ->
+    try
+        Info = resource_info(Lock, State),
+        OldLimit = limit(Info),
+        State2 = update_limit(Lock, Limit, ?DEFAULT_LOCK_INFO, State),
+        maybe_honor_limit(Kill, Lock, Limit, State2),
+        {reply, OldLimit, State2}
+    catch
+        {unregistered, Lock} ->
+            {reply, 0, update_limit(Lock, Limit, ?DEFAULT_LOCK_INFO, State)}
+    end.
+
+%% @doc Throws unregistered for unknown Lock
+do_resource_info(Lock, State) ->
+    {_R,_T,E,L} = resource_info_tuple(Lock, State),
+    {reply, {E,L}, State}.
+
+%% @doc Throws unregistered for unknown Lock
+do_lock_limit_reached(Lock, State) ->
+    Info = resource_info(Lock, State),
+    HeldCount = held_count(Lock, State),
+    Limit = limit(Info),
+    {reply, HeldCount >= Limit, State}.
+
+%% @private
+%% @doc Return the maximum allowed number of resources for the given
+%%      info, which considers the type of resource, e.g. lock vs token.
+limit(#resource_info{type=lock, limit=Limit}) -> Limit;
+limit(#resource_info{type=token, limit={_Period,MaxCount}}) -> MaxCount.
+
+%% @private
+%% @doc Release the resource associated with the given resource. This is mostly
+%%      meaningful for locks.
+release_resource(Ref, State=#state{table_id=TableId}) ->
     %% There should only be one instance of the object, but we'll zap all that match.
-    Pattern = {{held, '_'}, {'_', Ref, '_'}},
-    Matches = [Lock || {{held, _Type},Lock} <- ets:match_object(TableId, Pattern)],
+    Entries = all_given_entries(State),
+    Matches = [Entry || {{given, _Resource},Entry} <- Entries, ?e_ref(Entry) == Ref],
     [ets:delete_object(TableId, Obj) || Obj <- Matches],
     State.
 
-maybe_honor_limit(true, LockType, Limit, State) ->
-    Held = held_locks(LockType, State),
+maybe_honor_limit(true, Lock, Limit, State) ->
+    Entries = all_given_entries(State),
+    Held = [Entry || Entry <- Entries, ?e_type(Entry) == lock, ?e_resource(Entry) == Lock],
     case Limit < length(Held) of
         true ->
-            {_Keep, Discard} = lists:split(Limit, Held),
-            %% killing of processes will generate down messages and release the locks
-            [erlang:exit(Pid, max_concurrency) || {Pid, _, _} <- Discard],
+            {_Keep, Discards} = lists:split(Limit, Held),
+            %% killing of processes will generate 'DOWN' messages and release the locks
+            [erlang:exit(Pid, max_concurrency) || Discard <- Discards, Pid = ?e_pid(Discard)],
             ok;
         false ->
             ok
@@ -482,48 +723,396 @@ maybe_honor_limit(true, LockType, Limit, State) ->
 maybe_honor_limit(false, _LockType, _Limit, _State) ->
     ok.
 
-held_count(LockType, State) ->
-    length(held_locks(LockType, State)).
+held_count(Resource, State) ->
+    length(resources_given(Resource, State)).
 
-held_locks(#state{table_id=TableId}) ->
-    [Lock || {{held, _Type},Lock} <- ets:match_object(TableId, {{held, '_'},'_'})].
+do_enable_resource(Resource, Enabled, State) ->
+    Info = resource_info(Resource, State),
+    State2 = update_resource_enabled(Resource, Enabled, Info, State),
+    {noreply, State2}.
 
-held_locks(LockType, #state{table_id=TableId}) ->
-    [Lock || {{held, _Type},Lock} <- ets:match_object(TableId, {{held, LockType},'_'})].
-
-enable_lock(LockType, State) ->
-    update_lock_enabled(LockType, true, State).
-
-disable_lock(LockType, State) ->
-    update_lock_enabled(LockType, false, State).
-
-update_lock_enabled(LockType, Value, State) ->
-    update_lock_info(LockType,
-                     fun(LockInfo) -> LockInfo#lock_info{enabled=Value} end,
-                     ?DEFAULT_LOCK_INFO#lock_info{enabled=Value},
+update_resource_enabled(Resource, Value, Default, State) ->
+    update_resource_info(Resource,
+                         fun(Info) -> Info#resource_info{enabled=Value} end,
+                         Default#resource_info{enabled=Value},
                      State).
 
-update_concurrency_limit(LockType, Limit, State) ->
-    update_lock_info(LockType,
-                     fun(LockInfo) -> LockInfo#lock_info{concurrency_limit=Limit} end,
-                     ?DEFAULT_LOCK_INFO#lock_info{concurrency_limit=Limit},
-                     State).
+update_limit(Resource, Limit, Default, State) ->
+    update_resource_info(Resource,
+                         fun(Info) -> Info#resource_info{limit=Limit} end,
+                         Default#resource_info{limit=Limit},
+                         State).
 
-update_lock_info(LockType, Fun, Default, State=#state{table_id=TableId}) ->
-    Key = {info, LockType},
+update_resource_info(Resource, Fun, Default, State=#state{table_id=TableId}) ->
+    Key = {info, Resource},
     NewInfo = case ets:lookup(TableId, Key) of
                   [] -> Default;
-                  [{_Key,LockInfo}] -> Fun(LockInfo)
+                  [{_Key,Info}] ->
+                      %% delete existing since we are using a bag, we don't
+                      %% want multiple per info values resource key.
+                      ets:delete(TableId, Key),
+                      Fun(Info)
               end,
     ets:insert(TableId, {Key, NewInfo}),
     State.
 
-lock_info(LockType, #state{table_id=TableId}) ->
-    Key = {info,LockType},
+%% @doc Throws unregistered for unknown Resource
+resource_info(Resource, #state{table_id=TableId}) ->
+    Key = {info,Resource},
     case ets:lookup(TableId, Key) of
-        [] -> ?DEFAULT_LOCK_INFO;
-        [{_Key,LockInfo}] -> LockInfo;
+        [] -> throw({unregistered, Resource});
+        [{_Key,Info}] -> Info;
         [First | _Rest] ->
-            lager:error("Unexpected multiple instances of key ~p in table", [{info, LockType}]),
+            lager:error("Unexpected multiple instances of key ~p in table", [{info, Resource}]),
             First %% try to keep going
+    end.
+
+%% @doc Throws unregistered for unknown Resource
+resource_info_tuple(Resource, State) ->
+    Info = resource_info(Resource, State),
+    {Resource, ?resource_type(Info), ?resource_enabled(Info), ?resource_limit(Info)}.
+
+
+%% Possibly send replies to processes blocked on resources named Resource.
+%% Returns new State.
+give_available_resources(Resource, 0, Queue, State) ->
+    %% no more available resources to give out
+    update_blocked_queue(Resource, Queue, State);
+give_available_resources(Resource, NumAvailable, Queue, State) ->
+    case queue:out(Queue) of
+        {empty, _Q} ->
+            %% no more blocked entries
+            update_blocked_queue(Resource, Queue, State);
+        {{value, Entry}, Queue2} ->
+            %% account for given resource
+            State2 = give_resource(Entry, State),
+            %% send reply to blocked caller, unblocking them.
+            gen_server:reply(?e_from(Entry), ok),
+            %% unblock next blocked in queue
+            give_available_resources(Resource, NumAvailable-1, Queue2,State2)
+    end.
+
+%% @private
+%% @doc
+%% For the given type, check the current given count and if less
+%% than the rate limit, give out as many tokens as are available
+%% to callers on the blocked list. They need a reply because they
+%% made a gen_server:call() that we have not replied to yet.
+maybe_unblock_blocked(Resource, State) ->
+%%    ?debugFmt("Maybe unblock ~p~n", [Resource]),
+    Entries = resources_given(Resource, State),
+    Info = resource_info(Resource, State),
+    MaxCount = limit(Info),
+    PosNumAvailable = erlang:max(MaxCount - length(Entries), 0),
+    Queue = blocked_queue(Resource, State),
+    give_available_resources(Resource, PosNumAvailable, Queue, State).
+
+schedule_timeout(Resource, From, Timeout) ->
+    erlang:send_after(Timeout, self(), {blocked_timeout, Resource, From}),
+    ok.
+
+%% @private
+%% @doc Send timeout reply to blocked caller, unblocking them.
+%% And remove the matching entry from the blocked queue. We can find the
+%% matching entry based on the 'From' since the caller can't block on more
+%% than one call at a time.
+do_reply_timeout(Resource, From, State) ->
+    gen_server:reply(From, timeout),
+    Queue = blocked_queue(Resource, State),
+    Queue2 = queue:filter(fun(Entry) -> ?e_from(Entry) /= From end, Queue),
+    update_blocked_queue(Resource, Queue2, State).
+
+%% @private
+%% @doc
+%% Get existing token type info from ETS table and schedule all for refill.
+%% This is needed because we just reloaded our saved persisent state data
+%% after a crash.
+reschedule_token_refills(State) ->
+    Tokens = all_registered_resources(token, State),
+    [schedule_refill_tokens(Token, State) || Token <- Tokens].
+ 
+%% Schedule a timer event to refill tokens of given type
+schedule_refill_tokens(Token, State) ->
+    {Period, _Count} = ?resource_limit(resource_info(Token, State)),
+    erlang:send_after(Period*1000, self(), {refill_tokens, Token}).
+
+%% Schedule a timer event to snapshot the current history
+schedule_sample_history(State=#state{window_interval=Interval}) ->
+    TRef = erlang:send_after(Interval*1000, self(), sample_history),
+    State#state{window_tref=TRef}.
+
+do_sample_history(State=#state{window=Window, history=Histories}) ->
+    %% Move the current window of measurements onto the history queues.
+    %% Trim queue down to ?BG_DEFAULT_KEPT_SAMPLES if too big now.
+    Queue2 = queue:in(Window, Histories),
+    Trimmed = case queue:len(Queue2) > ?BG_DEFAULT_KEPT_SAMPLES of
+                  true ->
+                      {_Discarded, Rest} = queue:out(Queue2),
+                      Rest;
+                  false ->
+                      Queue2
+              end,
+    EmptyWindow = orddict:new(),
+    State#state{window=EmptyWindow, history=Trimmed}.
+
+update_stat_window(TokenType, Fun, Default, State=#state{window=Window}) ->
+    NewWindow = orddict:update(TokenType, Fun, Default, Window),
+    State#state{window=NewWindow}.
+
+resources_given(Resource, #state{table_id=TableId}) ->
+    Key = {given, Resource},
+    [Given || {_K,Given} <- ets:lookup(TableId, Key)].
+
+add_given_entry(Resource, Entry, TableId) ->
+    Key = {given, Resource},
+    ets:insert(TableId, {Key, Entry}).
+
+remove_given_entries(Token, #state{table_id=TableId}) ->
+    Key = {given, Token},
+    ets:delete(TableId, Key).
+
+%% @private
+%% @doc Add a resource queue entry to our given set.
+give_resource(Entry, State=#state{table_id=TableId}) ->
+    Resource = ?e_resource(Entry),
+    Type = ?e_type(Entry),
+%%    ?debugFmt("Giving ~p~n", [Resource]),
+    add_given_entry(Resource, Entry#resource_entry{state=given}, TableId),
+    %% update given stats
+    increment_stat_given(Resource, Type, State).
+
+%% @private
+%% @doc Add Resource to our given set.
+give_resource(Resource, Type, Pid, Ref, Meta, State) ->
+    From = undefined,
+    Entry = ?RESOURCE_ENTRY(Resource, Type, Pid, Meta, From, Ref, given),
+    give_resource(Entry, State).
+
+
+try_get_resource(false, _Resource, _Type, _Pid, _Meta, State) ->
+    {max_concurrency, State};
+try_get_resource(true, Resource, Type, Pid, Meta, State) ->
+    Ref = monitor(process, Pid),
+    {ok, give_resource(Resource, Type, Pid, Ref, Meta, State)}.
+
+%% @private
+%% @doc reply now if resource is available. Returns max_concurrency
+%%      if resource not available or globally or specifically disabled.
+do_get_resource(_Resource, _Type, _Pid, _Meta, State=#state{enabled=false}) ->
+    {reply, max_concurrency, State};
+do_get_resource(Resource, Type, Pid, Meta, State) ->
+    Info = resource_info(Resource, State),
+    Enabled = ?resource_enabled(Info),
+    Limit = limit(Info),
+    Given  = length(resources_given(Resource, State)),
+    {Result, State2} = try_get_resource(Enabled andalso not (Given >= Limit), Resource, Type, Pid, Meta, State),
+    {reply, Result, State2}.
+
+%% @private
+%% @doc
+%% reply now if available or reply later if en-queued. Call returns even if we can't
+%% get the resource now, but 'noreply' indicates that calling process will block until
+%% we forward the reply later.
+do_get_resource_blocking(Resource, Type, Pid, Meta, From, Timeout, State) ->
+    case do_get_resource(Resource, Type, Pid, Meta, State) of
+        {reply, max_concurrency, _State2} ->
+            {noreply, enqueue_request(Resource, Type, Pid, Meta, From, Timeout, State)};
+        Reply ->
+            Reply
+    end.
+
+%% @private
+%% @doc Replace the current "blocked entries" queue for the specified Resource.
+update_blocked_queue(Resource, Queue, State=#state{table_id=TableId}) ->
+    Key = {blocked, Resource},
+    Object = {Key, Queue},
+    %% replace existing queue. Must delete existing one since we're using a bag table
+    ets:delete(TableId, Key),
+    ets:insert(TableId, Object),
+    State.
+
+%% @private
+%% @doc Return the queue of blocked resources named 'Resource'.
+blocked_queue(Resource, #state{table_id=TableId}) ->
+    Key = {blocked, Resource},
+    case ets:lookup(TableId, Key) of
+        [] -> queue:new();
+        [{Key,Queue}] -> Queue
+    end.
+
+%% @private
+%% @doc Put a resource request on the blocked queue. We'll reply later when resources
+%% of that type become available.
+enqueue_request(Resource, Type, Pid, Meta, From, Timeout, State) ->
+%%    ?debugFmt("queueing ~p~n", [Resource]),
+    OldQueue = blocked_queue(Resource, State),
+    Ref = monitor(process, Pid),
+    NewQueue = queue:in(?RESOURCE_ENTRY(Resource, Type, Pid, Meta, From, Ref, blocked), OldQueue),
+    schedule_timeout(Resource, From, Timeout),
+    %% update blocked stats
+    State2 = increment_stat_blocked(Resource, State),
+    %% Put new queue back in state
+    update_blocked_queue(Resource, NewQueue, State2).
+
+all_registered_resources(Type, #state{table_id=TableId}) ->
+    [Resource || {{info, Resource}, Info} <- ets:match_object(TableId, {{info, '_'},'_'}),
+                 ?resource_type(Info) == Type].
+
+all_given_entries(#state{table_id=TableId}) ->
+    %% multiple entries per resource type, i.e. uses the "bag"
+    [Entry || {{given, _Resource}, Entry} <- ets:match_object(TableId, {{given, '_'},'_'})].
+
+all_blocked_queues(#state{table_id=TableId}) ->
+    %% there is just one queue per resource type. More like a "set". The queue is in the table!
+    [Queue || {{blocked, _Resource}, Queue} <- ets:match_object(TableId, {{blocked, '_'},'_'})].
+
+format_entry(Entry) ->
+    #bg_stat_live
+        {
+          resource = ?e_resource(Entry),
+          type = ?e_type(Entry),
+          consumer = ?e_pid(Entry),
+          meta = ?e_meta(Entry),
+          state = ?e_state(Entry)
+        }.
+
+fmt_live_entries(Entries) ->
+    [format_entry(Entry) || Entry <- Entries].
+
+%% States :: [given | blocked], Types :: [lock | token]
+do_query(all, States, Types, State) ->
+    E1 = case lists:member(given, States) of
+             true ->
+                 Entries = all_given_entries(State),
+                 lists:flatten([Entry || Entry <- Entries,
+                                         lists:member(?e_type(Entry), Types)]);
+             false ->
+                 []
+         end,
+    E2 = case lists:member(blocked, States) of
+             true ->
+                 Queues = all_blocked_queues(State),
+%%                 ?debugFmt("All blocked queues: ~p~n", [Queues]),
+                 E1 ++ lists:flatten(
+                         [[Entry || Entry <- queue:to_list(Q),
+                                    lists:member(?e_type(Entry), Types)] || Q <- Queues]);
+             false ->
+                 E1
+         end,
+    fmt_live_entries(E2);
+do_query(Resource, States, Types, State) ->
+    E1 = case lists:member(given, States) of
+             true ->
+                 Entries = resources_given(Resource, State),
+                 [Entry || Entry <- Entries, lists:member(?e_type(Entry), Types)];
+             false ->
+                 []
+         end,
+    E2 = case lists:member(blocked, States) of
+             true ->
+                 %% Oh Erlang, why is your scoping so messed up?
+                 Entries2 = queue:to_list(blocked_queue(Resource, State)),
+                 E1 ++ [Entry || Entry <- Entries2, lists:member(?e_type(Entry), Types)];
+             false ->
+                 E1
+         end,
+    fmt_live_entries(E2).
+
+%% @private
+%% @doc Token refill timer event handler.
+%%   Capture stats of what was given in the previous period,
+%%   Clear all tokens of this type from the given set,
+%%   Unblock blocked processes if possible.
+do_refill_tokens(Token, State) ->
+%%    ?debugFmt("Refilling ~p~n", [Token]),
+    State2 = increment_stat_refills(Token, State),
+    remove_given_entries(Token, State),
+    maybe_unblock_blocked(Token, State2).
+
+default_refill(Token, State) ->
+    Limit = limit(resource_info(Token, State)),
+    ?BG_DEFAULT_STAT_HIST#bg_stat_hist{type=token, refills=1, limit=Limit}.
+
+default_given(Token, Type, State) ->
+    Limit = limit(resource_info(Token, State)),
+    ?BG_DEFAULT_STAT_HIST#bg_stat_hist{type=Type, given=1, limit=Limit}.
+
+increment_stat_refills(Token, State) ->
+    update_stat_window(Token,
+                       fun(Stat) -> Stat#bg_stat_hist{refills=1+Stat#bg_stat_hist.refills} end,
+                       default_refill(Token, State),
+                       State).
+
+increment_stat_given(Token, Type, State) ->
+    update_stat_window(Token,
+                       fun(Stat) -> Stat#bg_stat_hist{given=1+Stat#bg_stat_hist.given} end,
+                       default_given(Token, Type, State),
+                       State).
+
+increment_stat_blocked(Token, State) ->
+    Limit = limit(resource_info(Token, State)),
+    update_stat_window(Token,
+                       fun(Stat) -> Stat#bg_stat_hist{blocked=1+Stat#bg_stat_hist.blocked} end,
+                       ?BG_DEFAULT_STAT_HIST#bg_stat_hist{blocked=1, limit=Limit},
+                       State).
+
+%% erase saved history
+do_clear_history(State=#state{window_tref=TRef}) ->
+    erlang:cancel_timer(TRef),
+    State2 = State#state{history=queue:new()},
+    schedule_sample_history(State2).
+
+%% Return stats history from head or tail of stats history queue
+do_hist(End, TokenType, Offset, Count, State) when Offset =< 0 ->
+    do_hist(End, TokenType, 1, Count, State);
+do_hist(End, TokenType, Offset, Count, State) when Count =< 0 ->
+    do_hist(End, TokenType, Offset, ?BG_DEFAULT_OUTPUT_SAMPLES, State);
+do_hist(End, TokenType, Offset, Count, #state{history=HistQueue}) ->
+    QLen = queue:len(HistQueue),
+    First = max(1, case End of
+                       head -> Offset;
+                       tail -> QLen - Offset + 1
+                   end),
+    Last = min(QLen, max(First + Count - 1, 1)),
+    case segment_queue(First, Last, HistQueue) of
+        empty -> [];
+        {ok, Hist } -> 
+            case TokenType of
+                all ->
+                    StatsDictList = queue:to_list(Hist),
+                    [orddict:to_list(Stat) || Stat <- StatsDictList];
+                _T  ->
+                    [[{TokenType, stat_window(TokenType, StatsDict)}] || StatsDict <- queue:to_list(Hist)]
+            end
+    end.
+
+segment_queue(First, Last, Queue) ->
+    QLen = queue:len(Queue),
+    case QLen >= Last andalso QLen > 0 of
+        true ->
+            %% trim off extra tail, then trim head
+            Front = case QLen == Last of
+                        true -> Queue;
+                        false ->
+                            {QFirst, _QRest} = queue:split(Last, Queue),
+                            QFirst
+                    end,
+            case First == 1 of
+                true -> {ok, Front};
+                false ->
+                    {_Skip, Back} = queue:split(First-1, Front),
+                    {ok, Back}
+            end;
+        false ->
+            %% empty
+            empty
+    end.
+ 
+%% @private
+%% @doc Get stat history for given token type from sample set
+-spec stat_window(bg_resource(), orddict:orddict()) -> bg_stat_hist().
+stat_window(Resource, Window) ->
+    case orddict:find(Resource, Window) of
+        error -> ?BG_DEFAULT_STAT_HIST;
+        {ok, StatHist} -> StatHist
     end.

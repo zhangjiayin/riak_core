@@ -100,7 +100,6 @@
              riak_core_broadcast,
              riak_core_broadcast_handler,
              riak_core_bg_manager,
-             riak_core_token_manager,
              riak_core_table_manager,
              riak_core_bg_manager_sup
             ]},
