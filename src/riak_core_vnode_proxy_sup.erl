@@ -19,7 +19,7 @@
 -module(riak_core_vnode_proxy_sup).
 -behaviour(supervisor).
 -export([start_link/0, init/1]).
--export([start_proxy/2, stop_proxy/2, start_proxies/1]).
+-export([start_proxy/2, stop_proxy/2, stop_proxies/0, start_proxies/1]).
 
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
@@ -51,6 +51,14 @@ start_proxies(Mod) ->
     Indices = get_indices(),
     [start_proxy(Mod, Index) || Index <- Indices],
     ok.
+
+stop_proxies() ->
+    Indices = get_indices(),
+    [begin
+          lager:debug("Stopping vnode proxies for: ~p", [Mod]),
+          [stop_proxy(Mod, Index) || Index <- Indices]
+     end || {_, Mod} <-  riak_core:vnode_modules()].
+
 
 %% @private
 proxy_ref(Mod, Index) ->
