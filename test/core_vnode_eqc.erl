@@ -49,6 +49,7 @@
                async_work=[]}). % {Index, AsyncRef} async work submitted to each vnode
 
 simple_test_() ->
+    Time = 60,
     {setup,
      fun setup_simple/0,
      fun(OldVars) ->
@@ -56,8 +57,8 @@ simple_test_() ->
              [ok = application:set_env(riak_core, K, V) || {K,V} <- OldVars],
              ok
      end,
-     {timeout, 600,
-      ?_assertEqual(true, quickcheck(?QC_OUT(numtests(100, prop_simple()))))}}.
+     {timeout, Time*2,
+      ?_assertEqual(true, quickcheck(?QC_OUT(eqc:testing_time(Time, prop_simple()))))}}.
 
 setup_simple() ->
     Vars = [{ring_creation_size, 8},
@@ -75,6 +76,7 @@ setup_simple() ->
     riak_core_ring_manager:start_link(test),
     riak_core_vnode_proxy_sup:start_link(),
     riak_core:register([{vnode_module, mock_vnode}]),
+    error_logger:tty(false), % avoid noise from deliberate_async_crash crashes
     OldVars.
 
 test(N) ->
