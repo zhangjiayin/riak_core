@@ -299,8 +299,9 @@ vnode_command(_Sender, _Request, State=#state{modstate={deleted,_}}) ->
     continue(State);
 vnode_command(Sender, Request, State=#state{mod=Mod,
                                             modstate=ModState,
+                                            index=Index,
                                             pool_pid=Pool}) ->
-    case Mod:handle_command(Request, Sender, ModState) of
+    try Mod:handle_command(Request, Sender, ModState) of
         continue ->
             continue(State, ModState);
         {reply, Reply, NewModState} ->
@@ -315,6 +316,11 @@ vnode_command(Sender, Request, State=#state{mod=Mod,
             continue(State, NewModState);
         {stop, Reason, NewModState} ->
             {stop, Reason, State#state{modstate=NewModState}}
+    catch X:Y ->
+            reply(Sender, {vnode_error, {X, Y}}),
+            lager:error("command failed for Mod ~p Index ~p: ~p ~p: ~W",
+                        [Mod, Index, X, Y, Request, 20]),
+            continue(State, ModState)
     end.
 
 vnode_coverage(Sender, Request, KeySpaces, State=#state{index=Index,
